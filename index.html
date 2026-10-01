@@ -4071,6 +4071,56 @@ window.MMS={gsRebuildReports,gsSync,gsConfigure,gsTogglePrimary,gsResetState,log
 window.addEventListener('load',()=>{setBadge();let s=session();if(s){document.getElementById('mmsLogin').classList.add('hidden');}else document.getElementById('mmsLogin').classList.remove('hidden');initFY();refreshKPIs();gsRenderPrimaryUI();});
 })();
 document.addEventListener('DOMContentLoaded',function(){utilityNormalizeData();seedUtilityExcel2024Items();setv('mu_log_date',utilityToday());setv('mu_item_sno',nextUtilitySno());renderMaintUtility();if(typeof initAirCompressor==='function')initAirCompressor();});
+// ==========================================
+// EMERGENCY FIX: AUTO-SORT MACHINE MASTER
+// ==========================================
+function autoSortMachineMaster() {
+    if (typeof MACHINE_MASTER !== 'undefined' && Array.isArray(MACHINE_MASTER)) {
+        // Machine ko Department aur phir Machine Number ke hisaab se sort karenge
+        MACHINE_MASTER.sort((a, b) => {
+            let deptA = String(a.department || '').trim().toUpperCase();
+            let deptB = String(b.department || '').trim().toUpperCase();
+            
+            // Pehle Department ke hisaab se group karega
+            if (deptA < deptB) return -1;
+            if (deptA > deptB) return 1;
+            
+            // Agar Department same hai, toh Machine Number (SQF-01, SQF-02, etc.) se sort karega
+            let macA = String(a.machineNumber || '').trim().toUpperCase();
+            let macB = String(b.machineNumber || '').trim().toUpperCase();
+            if (macA < macB) return -1;
+            if (macA > macB) return 1;
+            
+            return 0;
+        });
+
+        // S.No (1, 2, 3...) ko wapas line se theek karega
+        MACHINE_MASTER.forEach((m, index) => {
+            m.sno = index + 1;
+        });
+
+        // Sahi order ko memory mein save kar dega taaki Google Sheet par theek ho jaye
+        if (typeof saveEditableMachineMaster === 'function') saveEditableMachineMaster();
+    }
+}
+
+// Render function ko override kar rahe hain taaki future mein Google Sheet kabhi isko kharab na kar paye
+if (typeof renderMachineMaster === 'function') {
+    const oldRenderMachineMaster = renderMachineMaster;
+    renderMachineMaster = function() {
+        autoSortMachineMaster();  // Screen par dikhane se pehle hamesha saaf/sort karega
+        oldRenderMachineMaster(); // Phir table print karega
+    };
+}
+
+// Page load hote hi turant isko chalane ke liye
+setTimeout(() => {
+    autoSortMachineMaster();
+    if (typeof renderMachineMaster === 'function') renderMachineMaster();
+    if (typeof populateMachineDropdown === 'function') populateMachineDropdown();
+    if (typeof populateHistoryMachineDropdown === 'function') populateHistoryMachineDropdown();
+}, 500);
+// ==========================================
 </script>
 </body>
 </html>
