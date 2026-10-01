@@ -4071,6 +4071,37 @@ window.MMS={gsRebuildReports,gsSync,gsConfigure,gsTogglePrimary,gsResetState,log
 window.addEventListener('load',()=>{setBadge();let s=session();if(s){document.getElementById('mmsLogin').classList.add('hidden');}else document.getElementById('mmsLogin').classList.remove('hidden');initFY();refreshKPIs();gsRenderPrimaryUI();});
 })();
 document.addEventListener('DOMContentLoaded',function(){utilityNormalizeData();seedUtilityExcel2024Items();setv('mu_log_date',utilityToday());setv('mu_item_sno',nextUtilitySno());renderMaintUtility();if(typeof initAirCompressor==='function')initAirCompressor();});
+// ====== BREAKDOWN HOURS LIVE CALCULATION FIX ======
+function updateBDHoursLive() {
+    let from = document.getElementById('bd_from').value;
+    let to = document.getElementById('bd_to').value;
+    
+    if (from && to) {
+        let [fh, fm] = from.split(':').map(Number);
+        let [th, tm] = to.split(':').map(Number);
+        
+        let a = fh * 60 + fm;
+        let b = th * 60 + tm;
+        
+        // Agar breakdown midnight ke baad tak gaya ho
+        if (b < a) b += 1440; 
+        
+        let diffMinutes = b - a;
+        let hrs = Math.floor(diffMinutes / 60);
+        let mins = diffMinutes % 60;
+        
+        // Box mein readable format show karega
+        document.getElementById('bd_hours').value = `${hrs} Hr ${mins} Min`; 
+    } else {
+        document.getElementById('bd_hours').value = '';
+    }
+}
+
+// Jaise hi time change hoga, function chal jayega
+['bd_from', 'bd_to'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', updateBDHoursLive);
+});
+// ===================================================
 </script>
 </body>
 </html>
