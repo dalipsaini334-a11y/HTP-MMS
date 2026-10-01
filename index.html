@@ -10229,8 +10229,53 @@ setTimeout(() => {
         if (typeof pmPlanMachineSetupOptions === 'function') pmPlanMachineSetupOptions();
     }
 }, 1000);
+</script>
 
 // =================================================================
+<script id="mms-dedupe-fix">
+(function(){
+  // FIX: Machine Master (aur Spares/Critical/TC/Calibration jaisi master lists) ko baar-baar
+  // duplicate/change hone se rokta hai. Wajah: 'sno' sirf row number hai, jo har add/edit/
+  // delete par SAARI machines ke liye renumber hota hai. Pehle 'sno' bhi sync pehchan (hash)
+  // ka hissa tha, isliye ek machine add/remove karte hi baaki SAARI machines "badli hui" lagti
+  // thi aur doosre device par list change/duplicate ho jati thi. Fix: 'sno' ko sync identity se
+  // nikal diya + Machine Master ki pehchan reload ke baad bhi stable rakhi.
+  if (typeof gsClean === 'function') {
+    window.gsClean = function (r) {
+      return JSON.stringify(r, function (k, v) {
+        if (k === 'evidence') return undefined;
+        if (k === 'sno') return undefined;   // row number ab identity ka hissa nahi
+        return v;
+      });
+    };
+  }
+  if (typeof loadEditableMachineMaster === 'function' && typeof MACHINE_MASTER !== 'undefined') {
+    window.loadEditableMachineMaster = function () {
+      try {
+        const saved = JSON.parse(localStorage.getItem(MACHINE_MASTER_STORAGE_KEY) || 'null');
+        if (Array.isArray(saved) && saved.length > 0) {
+          let validMachines = saved.map((m, i) => ({
+            sno: i + 1,
+            department: m.department || '',
+            machineNumber: String(m.machineNumber || '').trim(),
+            machineName: m.machineName || '',
+            grade: m.grade || '',
+            make: m.make || '',
+            costCenter: m.costCenter || '',
+            _sid: m._sid || undefined   // purani sync pehchan reload ke baad bhi bachao
+          })).filter(m => m.machineNumber);
+          if (validMachines.length > 0) {
+            MACHINE_MASTER.splice(0, MACHINE_MASTER.length, ...validMachines);
+          } else {
+            localStorage.removeItem(MACHINE_MASTER_STORAGE_KEY);
+          }
+        }
+      } catch (e) {
+        console.warn('Machine master load skipped', e);
+      }
+    };
+  }
+})();
 </script>
   </body>
 </html>
