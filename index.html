@@ -10232,21 +10232,45 @@ setTimeout(() => {
 </script>
 <script id="mms-dedupe-fix">
 (function(){
-  // FIX: Machine Master (aur Spares/Critical/TC/Calibration jaisi master lists) ko baar-baar
-  // duplicate/change hone se rokta hai. Wajah: 'sno' sirf row number hai, jo har add/edit/
-  // delete par SAARI machines ke liye renumber hota hai. Pehle 'sno' bhi sync pehchan (hash)
-  // ka hissa tha, isliye ek machine add/remove karte hi baaki SAARI machines "badli hui" lagti
-  // thi aur doosre device par list change/duplicate ho jati thi. Fix: 'sno' ko sync identity se
-  // nikal diya + Machine Master ki pehchan reload ke baad bhi stable rakhi.
+  // FIX 1: 'sno' (row number) ko sync pehchan (hash) se bahar nikalo. Pehle 'sno' bhi hash ka
+  // hissa tha, isliye ek machine add/remove karte hi baaki SAARI machines "badli hui" lagti
+  // thi aur doosre device par list change/duplicate ho jati thi.
   if (typeof gsClean === 'function') {
     window.gsClean = function (r) {
       return JSON.stringify(r, function (k, v) {
         if (k === 'evidence') return undefined;
-        if (k === 'sno') return undefined;   // row number ab identity ka hissa nahi
+        if (k === 'sno') return undefined;
         return v;
       });
     };
   }
+
+  function mmsNormKey(v){
+    return String(v||'').trim().toLowerCase().replace(/\s+/g,' ');
+  }
+  function mmsScore(m){
+    // Jis entry me zyada fields bhari hain usi ko rakho jab duplicate milein.
+    return ['department','machineName','grade','make','costCenter']
+      .reduce((s,k)=>s+(String(m[k]||'').trim()?1:0),0);
+  }
+  function mmsDedupeMachineMaster(list){
+    const byKey={}, order=[];
+    list.forEach(m=>{
+      if(!m || !String(m.machineNumber||'').trim()) return;
+      const k=mmsNormKey(m.machineNumber);
+      if(!byKey[k]){ byKey[k]=m; order.push(k); }
+      else if(mmsScore(m) > mmsScore(byKey[k])){
+        // better copy mili to _sid purani wali se le lo taaki sync identity na toote
+        if(byKey[k]._sid && !m._sid) m._sid = byKey[k]._sid;
+        byKey[k]=m;
+      }
+    });
+    return order.map((k,i)=>Object.assign({}, byKey[k], {sno:i+1}));
+  }
+
+  // FIX 2: Machine Master reload hote hi duplicate Machine Number wali entries khud-ba-khud
+  // saaf ho jayengi (jisme zyada data bhara hai wo rakhi jayegi), aur purani sync pehchan
+  // (_sid) bhi bachi rahegi.
   if (typeof loadEditableMachineMaster === 'function' && typeof MACHINE_MASTER !== 'undefined') {
     window.loadEditableMachineMaster = function () {
       try {
@@ -10260,10 +10284,22 @@ setTimeout(() => {
             grade: m.grade || '',
             make: m.make || '',
             costCenter: m.costCenter || '',
-            _sid: m._sid || undefined   // purani sync pehchan reload ke baad bhi bachao
+            _sid: m._sid || undefined
           })).filter(m => m.machineNumber);
+
+          const before = validMachines.length;
+          validMachines = mmsDedupeMachineMaster(validMachines);
+          const removed = before - validMachines.length;
+
           if (validMachines.length > 0) {
             MACHINE_MASTER.splice(0, MACHINE_MASTER.length, ...validMachines);
+            if (removed > 0) {
+              try { localStorage.setItem(MACHINE_MASTER_STORAGE_KEY, JSON.stringify(MACHINE_MASTER)); } catch (e) {}
+              console.warn('Removed '+removed+' duplicate machine(s) from Machine Master.');
+              setTimeout(function(){
+                try { if (typeof gsSchedule === 'function') gsSchedule(1500); } catch (e) {}
+              }, 500);
+            }
           } else {
             localStorage.removeItem(MACHINE_MASTER_STORAGE_KEY);
           }
