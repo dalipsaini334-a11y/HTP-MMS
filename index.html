@@ -10047,6 +10047,190 @@ window.MMS={gsRebuildReports,gsSync,gsConfigure,gsTogglePrimary,gsResetState,log
 window.addEventListener('load',()=>{setBadge();let s=session();if(s){document.getElementById('mmsLogin').classList.add('hidden');}else document.getElementById('mmsLogin').classList.remove('hidden');initFY();refreshKPIs();gsRenderPrimaryUI();});
 })();
 document.addEventListener('DOMContentLoaded',function(){utilityNormalizeData();seedUtilityExcel2024Items();setv('mu_log_date',utilityToday());setv('mu_item_sno',nextUtilitySno());renderMaintUtility();if(typeof initAirCompressor==='function')initAirCompressor();});
+// =================================================================
+// 100% SAFE VISUAL FIX & PM HIDE/RESTORE (Zero Effect on Sync)
+// =================================================================
+
+// 1. Ek function jo list ko sirf SCREEN par dikhane ke liye theek karega (Database nahi chhedega)
+function getSortedMachinesForDisplay() {
+    const ORIGINAL_ORDER = [
+        "SQF - 01", "SQF - 02", "SQF - 03", "SQF - 04", 
+        "TEMP - 01", "TEMP - 02", "WASHING -01", "CHARGE WAGON", 
+        "SB - 01", "GTC - 01", "GTC - 02", "GTC - 03", "GTC - 04", 
+        "PRE-HEAT", "PM - 01", "PM - 02", "LPG - 01", "DG - 01", 
+        "DG - 02", "AC - 01", "AC - 02", "CRYOGENIC CHAMBER", 
+        "MOULDING M/C", "POLISHING M/C", "CUTTING M/C 01", 
+        "CUTTING M/C 02", "SURFACE GRINDER", "GTC - 05"
+    ];
+    
+    // Copy banayega taaki asli data touch na ho (Sync loop na bane)
+    let displayList = [...(typeof MACHINE_MASTER !== 'undefined' ? MACHINE_MASTER : [])];
+    
+    displayList.sort((a, b) => {
+        let indexA = ORIGINAL_ORDER.indexOf(String(a.machineNumber).trim());
+        let indexB = ORIGINAL_ORDER.indexOf(String(b.machineNumber).trim());
+        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+        if (indexA !== -1) return -1;
+        if (indexB !== -1) return 1;
+        return String(a.machineNumber).trim() < String(b.machineNumber).trim() ? -1 : 1;
+    });
+    
+    return displayList;
+}
+
+// 2. Machine Master List ko Visual order mein show karna
+renderMachineMaster = function() {
+    let q = (document.getElementById('mm_search') ? document.getElementById('mm_search').value : '').toLowerCase();
+    let dept = document.getElementById('mm_dept_filter') ? document.getElementById('mm_dept_filter').value : '';
+    
+    // Sorted list le kar filter karega
+    let sortedMachines = getSortedMachinesForDisplay();
+    let a = sortedMachines.filter(m => (!dept || m.department === dept) && (!q || Object.values(m).join(' ').toLowerCase().includes(q)));
+    
+    let body = document.getElementById('mmBody');
+    if(body) {
+        body.innerHTML = a.map((m, idx) => `<tr>
+         <td>${idx + 1}</td><td>${esc(m.department)}</td><td><b>${esc(m.machineNumber)}</b></td><td>${esc(m.machineName)}</td>
+         <td>${esc(m.grade)}</td><td>${esc(m.make)}</td><td>${esc(m.costCenter)}</td></tr>`).join('');
+    }
+};
+
+// 3. Dropdowns ko bhi theek order mein dikhana
+populateMachineDropdown = function() {
+    let sel = document.getElementById('mr_machine_no');
+    if (!sel) return;
+    let current = sel.value;
+    sel.innerHTML = '<option value="">-- Select Machine --</option>' + getSortedMachinesForDisplay().map(m => `<option value="${esc(m.machineNumber)}">${esc(m.machineNumber)} — ${esc(m.machineName)}</option>`).join('');
+    if (MACHINE_MASTER.some(m => m.machineNumber === current)) sel.value = current;
+};
+
+populateHistoryMachineDropdown = function() {
+    let sel = document.getElementById('mh_machine_no');
+    if (!sel) return;
+    let cur = sel.value;
+    sel.innerHTML = '<option value="">-- Select Machine --</option>' + getSortedMachinesForDisplay().map(m => `<option value="${esc(m.machineNumber)}">${esc(m.machineNumber)} — ${esc(m.machineName)}</option>`).join('');
+    if (cur && MACHINE_MASTER.some(m => m.machineNumber === cur)) sel.value = cur;
+};
+
+pmPlanMachineSetupOptions = function() {
+    const sel = document.getElementById('pmpMachineSetup');
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">-- Select Machine --</option>' + getSortedMachinesForDisplay().map(m => `<option value="${esc(m.machineNumber)}">${esc(m.machineNumber)} — ${esc(m.machineName)}</option>`).join('');
+    if (cur && MACHINE_MASTER.some(m => m.machineNumber === cur)) sel.value = cur;
+};
+
+// 4. PM Module Hide / Exclude Logic (Bina list tode)
+pmPlanMachines = function() {
+    let masterData = (typeof pmPlanData !== 'undefined' && pmPlanData.master) ? pmPlanData.master : {};
+    return getSortedMachinesForDisplay()
+        .map((x, i) => ({
+            sno: i + 1,
+            machineNumber: String(x.machineNumber || '').trim(),
+            machineName: x.machineName || '',
+            grade: x.grade || '',
+            line: x.department || ''
+        }))
+        .filter(x => {
+            if (!x.machineNumber) return false;
+            // Agar PM master data mein machine ko hidden mark kiya gaya hai, toh use PM se chupa do
+            if (masterData[x.machineNumber] && masterData[x.machineNumber].excluded) return false;
+            return true;
+        });
+};
+
+pmPlanRemoveMachine = function() {
+    const no = document.getElementById('pmpMachineSetup') ? document.getElementById('pmpMachineSetup').value : '';
+    if (!no) return alert('Please select a machine.');
+    
+    let masterData = (typeof pmPlanData !== 'undefined' && pmPlanData.master) ? pmPlanData.master : {};
+    let isExcluded = masterData[no] && masterData[no].excluded;
+
+    if (isExcluded) {
+        if(!confirm(`Machine ${no} is currently HIDDEN from PM.\nDo you want to RESTORE it to the PM Schedule?`)) return;
+        pmMasterSave({machineNumber: no}, {excluded: false});
+        alert(`Machine ${no} has been RESTORED to PM.\n(Syncing automatically)`);
+    } else {
+        if(!confirm(`Are you sure you want to HIDE ${no} from the PM Schedule?\n\n(It will remain safe in Breakdown & Machine Master)`)) return;
+        pmMasterSave({machineNumber: no}, {excluded: true});
+        
+        if (typeof PMPLAN_MONTHS !== 'undefined') {
+            let changed = false;
+            PMPLAN_MONTHS.forEach(month => {
+                const k = pmPlanMonthKey(month) + '__' + no;
+                const r = pmPlanData[k];
+                if(r && !r.actual && !r.pmCheckId) {
+                    delete pmPlanData[k];
+                    changed = true;
+                }
+            });
+            if(changed) localStorage.setItem(PMPLAN_KEY, JSON.stringify(pmPlanData));
+        }
+        alert(`Machine ${no} is now HIDDEN from PM.\n(Syncing automatically)`);
+    }
+    
+    if(typeof pmPlanSyncSchedules === 'function') pmPlanSyncSchedules();
+    if(typeof renderPMYearlyPlan === 'function') renderPMYearlyPlan();
+    if(typeof renderPMPlan === 'function') renderPMPlan();
+    if(typeof renderDashboard === 'function') renderDashboard();
+};
+
+// 5. Missing Machines Ko Dheere Se Restore Karna (Bina Loop Banaye)
+setTimeout(() => {
+    if (typeof MACHINE_MASTER !== 'undefined' && Array.isArray(MACHINE_MASTER)) {
+        const CORE = [
+            {"department":"HEAT TREATMENT","machineNumber":"SQF - 01","machineName":"SEAL QUANCH FURNANCE","grade":"B","make":"AICHELIN UNITHERM"},
+            {"department":"HEAT TREATMENT","machineNumber":"SQF - 02","machineName":"SEAL QUANCH FURNANCE","grade":"B","make":"AICHELIN UNITHERM"},
+            {"department":"HEAT TREATMENT","machineNumber":"SQF - 03","machineName":"SEAL QUANCH FURNANCE","grade":"B","make":"AICHELIN UNITHERM"},
+            {"department":"HEAT TREATMENT","machineNumber":"SQF - 04","machineName":"SEAL QUANCH FURNANCE","grade":"B","make":"AICHELIN UNITHERM"},
+            {"department":"HEAT TREATMENT","machineNumber":"TEMP - 01","machineName":"TEMPERING","grade":"C","make":"AICHELIN UNITHERM"},
+            {"department":"HEAT TREATMENT","machineNumber":"TEMP - 02","machineName":"TEMPERING","grade":"C","make":"AICHELIN UNITHERM"},
+            {"department":"HEAT TREATMENT","machineNumber":"WASHING -01","machineName":"WASHING MACHINE","grade":"B","make":"AICHELIN UNITHERM"},
+            {"department":"HEAT TREATMENT","machineNumber":"CHARGE WAGON","machineName":"CHARGE WAGON","grade":"B","make":"AICHELIN UNITHERM"},
+            {"department":"HEAT TREATMENT","machineNumber":"SB - 01","machineName":"SHOT BLASTING","grade":"B","make":"INDABRATOR"},
+            {"department":"HEAT TREATMENT","machineNumber":"GTC - 01","machineName":"GEAR TOOTH CHAMFERING","grade":"B","make":"UBIQUE"},
+            {"department":"HEAT TREATMENT","machineNumber":"GTC - 02","machineName":"GEAR TOOTH CHAMFERING","grade":"B","make":"UBIQUE"},
+            {"department":"HEAT TREATMENT","machineNumber":"GTC - 03","machineName":"GEAR TOOTH CHAMFERING","grade":"B","make":"UBIQUE"},
+            {"department":"HEAT TREATMENT","machineNumber":"GTC - 04","machineName":"GEAR TOOTH CHAMFERING","grade":"B","make":"HOME MADE"},
+            {"department":"HEAT TREATMENT","machineNumber":"PRE-HEAT","machineName":"PRE-HEATING","grade":"B","make":"AICHELIN UNITHERM"},
+            {"department":"HEAT TREATMENT","machineNumber":"PM - 01","machineName":"PUNCHING MACHINE","grade":"B","make":"VYANA LASER"},
+            {"department":"HEAT TREATMENT","machineNumber":"PM - 02","machineName":"PUNCHING MACHINE","grade":"B","make":"VYANA LASER"},
+            {"department":"UTILITY","machineNumber":"LPG - 01","machineName":"LPG VAPOURIZER FLAMEPROFF","grade":"B","make":"CHANDRA ENGG."},
+            {"department":"UTILITY","machineNumber":"DG - 01","machineName":"DIESEL GENERATOR -600 KVA","grade":"B","make":"SUDHIR"},
+            {"department":"UTILITY","machineNumber":"DG - 02","machineName":"DIESEL GENERATOR -600 KVA","grade":"B","make":"CAT"},
+            {"department":"UTILITY","machineNumber":"AC - 01","machineName":"AIR COMPRESSOR","grade":"B","make":"KESAR"},
+            {"department":"UTILITY","machineNumber":"AC - 02","machineName":"AIR COMPRESSOR","grade":"B","make":"COM AIR"},
+            {"department":"HEAT TREATMENT","machineNumber":"CRYOGENIC CHAMBER","machineName":"CRYOGENIC CHAMBER","grade":"A","make":"ARYA AGENCIES"},
+            {"department":"LAB","machineNumber":"MOULDING M/C","machineName":"AUTOMATIC SPECIMEN MOUNTING PRESS M/C","grade":"B","make":"CHENNEI METCO"},
+            {"department":"LAB","machineNumber":"POLISHING M/C","machineName":"SAMPLE POLICING M/C","grade":"B","make":"CHENNEI METCO"},
+            {"department":"SAMPLE CUTTING AREA","machineNumber":"CUTTING M/C 01","machineName":"SAMPLE CUTTING M/C","grade":"B","make":"CHENNEI METCO"},
+            {"department":"SAMPLE CUTTING AREA","machineNumber":"CUTTING M/C 02","machineName":"SAMPLE CUTTING M/C","grade":"B","make":""},
+            {"department":"SAMPLE CUTTING AREA","machineNumber":"SURFACE GRINDER","machineName":"SURFACE GRINDER","grade":"B","make":"HARIG 612"},
+            {"department":"HEAT TREATMENT","machineNumber":"GTC - 05","machineName":"GEAR TOOTH CHAMFERING","grade":"B","make":"HOME MADE"}
+        ];
+        
+        let changed = false;
+        CORE.forEach(orig => {
+            let exists = MACHINE_MASTER.find(m => String(m.machineNumber).trim() === orig.machineNumber);
+            if (!exists) {
+                MACHINE_MASTER.push(orig); 
+                changed = true;
+            }
+        });
+
+        if (changed) {
+            if (typeof saveEditableMachineMaster === 'function') saveEditableMachineMaster();
+        }
+
+        // Sab theek hone ke baad screen update karna
+        if (typeof renderMachineMaster === 'function') renderMachineMaster();
+        if (typeof populateMachineDropdown === 'function') populateMachineDropdown();
+        if (typeof populateHistoryMachineDropdown === 'function') populateHistoryMachineDropdown();
+        if (typeof pmPlanMachineSetupOptions === 'function') pmPlanMachineSetupOptions();
+    }
+}, 1000);
+
+// =================================================================
 </script>
   </body>
 </html>
