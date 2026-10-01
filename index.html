@@ -2093,7 +2093,7 @@ function updatePFStatus(){
  let dkwh=kwh-prev.kwh,dkvah=kvah-prev.kvah;
  if(dkvah===0){el.value='';return;}
  let pf=dkwh/dkvah;
- el.value=pf>=0.9?'OK':'NOT OK';
+ el.value=pf>=0.99?'OK':'NOT OK';
 }
 ['pf_kwh','pf_kvah'].forEach(id=>document.getElementById(id)?.addEventListener('input',updatePFStatus));
 function savePF(){
@@ -2156,7 +2156,7 @@ function pfMonthlyCalc(label){
 function renderPF(){
   initUtilityMonths();
   let label=f('pf_month')||BD_MONTHS[0],calc=pfMonthlyCalc(label),tableRows=[];
-  calc.rows.forEach(({r,kd,vd,pf})=>{let autoStatus=pf===''?'':(Number(pf)>=0.9?'OK':'NOT OK'),real=data.pf.indexOf(r);tableRows.push(`<tr><td>${fmtDate(r.date)}</td><td>${esc(r.time)}</td><td class="num">${r.kwh}</td><td class="num">${r.kvah}</td><td class="num">${kd}</td><td class="num">${vd}</td><td>${pf}</td><td>${esc(autoStatus)}</td><td>${esc(r.sign)}</td><td><div class="editbar"><button class="secondary" onclick="editPF(${real})">Edit</button><button class="danger" onclick="delRow('pf',${real})">Delete</button></div></td></tr>`);});
+  calc.rows.forEach(({r,kd,vd,pf})=>{let autoStatus=pf===''?'':(Number(pf)>=0.99?'OK':'NOT OK'),real=data.pf.indexOf(r);tableRows.push(`<tr><td>${fmtDate(r.date)}</td><td>${esc(r.time)}</td><td class="num">${r.kwh}</td><td class="num">${r.kvah}</td><td class="num">${kd}</td><td class="num">${vd}</td><td>${pf}</td><td>${esc(autoStatus)}</td><td>${esc(r.sign)}</td><td><div class="editbar"><button class="secondary" onclick="editPF(${real})">Edit</button><button class="danger" onclick="delRow('pf',${real})">Delete</button></div></td></tr>`);});
   document.getElementById('pfBody').innerHTML=tableRows.join('');
   setText('pfMonthTitle',label?label.toUpperCase():'');
   const el=document.getElementById('pfMonthlySummary');if(el)el.innerHTML=`<div class="ms-item"><span class="ms-label">Monthly Total KWH</span><span class="ms-value">${calc.totalKwh.toFixed(1)}</span><span class="ms-sub">Consumption</span></div><div class="ms-item"><span class="ms-label">Monthly Total KVAH</span><span class="ms-value">${calc.totalKvah.toFixed(1)}</span><span class="ms-sub">Consumption</span></div><div class="ms-item"><span class="ms-label">Monthly PF</span><span class="ms-value">${calc.totalKvah?calc.pf.toFixed(3):'—'}</span><span class="ms-sub">Total KWH ÷ Total KVAH</span></div><div class="ms-item"><span class="ms-label">Valid Readings</span><span class="ms-value">${calc.count}</span><span class="ms-sub">Monthly consumption intervals</span></div>`;
