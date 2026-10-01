@@ -882,7 +882,7 @@ main.wrap{margin-left:252px;padding:94px 22px 25px;max-width:none}.sidebar-overl
 </div>
 <div class="card no-print-pmplan">
  <div class="head2">MACHINE / PM SETUP</div>
- <div class="toolbar"><div class="field" style="min-width:260px"><label>Machine</label><select id="pmpMachineSetup" onchange="pmMachineSetupChanged()"></select></div><button class="primary" onclick="pmPlanAddMachine()">+ Add Machine</button><button class="secondary" onclick="pmPlanEditMachine()">Edit Machine</button><button class="danger" onclick="pmPlanRemoveMachine()">Remove Machine</button><button class="secondary" onclick="pmPlanAssignChecklist()">Link Check Sheet</button></div>
+ <div class="toolbar"><div class="field" style="min-width:260px"><label>Machine</label><select id="pmpMachineSetup" onchange="pmMachineSetupChanged()"></select></div><button class="primary" onclick="pmPlanAddMachine()">+ Add Machine</button><button class="secondary" onclick="pmPlanEditMachine()">Edit Machine</button><button class="danger" onclick="pmPlanRemoveMachine()">Remove Machine</button><button class="secondary" onclick="pmPlanRestoreMachine()">Restore to PM</button><button class="secondary" onclick="pmPlanAssignChecklist()">Link Check Sheet</button></div>
  </div>
 </div>
 </section>
@@ -1361,7 +1361,72 @@ function pmPlanMachineSetupOptions(){const sel=document.getElementById('pmpMachi
 function pmMachineSetupChanged(){}
 function pmPlanAddMachine(){const machineNumber=(prompt('Machine Number / Code:')||'').trim();if(!machineNumber)return;if(MACHINE_MASTER.some(m=>String(m.machineNumber).toLowerCase()===machineNumber.toLowerCase()))return alert('This machine number already exists.');const machineName=(prompt('Machine Name:',machineNumber)||'').trim();if(!machineName)return;const department=(prompt('Department / Line:','HEAT TREATMENT')||'').trim();const grade=(prompt('Grade:','B')||'').trim();const make=(prompt('Make / Manufacturer:','')||'').trim();const costCenter=(prompt('Cost Center:','')||'').trim();MACHINE_MASTER.push({sno:MACHINE_MASTER.length+1,department,machineNumber,machineName,grade,make,costCenter});MACHINE_MASTER.forEach((m,i)=>m.sno=i+1);saveEditableMachineMaster();const keys=Object.keys(PM_CHECKLISTS||{}),list=keys.map((k,i)=>`${i+1}. ${k}`).join('\n');const ans=prompt('Select PM Check Sheet checklist number for '+machineNumber+' (leave blank for automatic match):\n\n'+list,'');let key=ans&&/^\d+$/.test(ans)?keys[Number(ans)-1]:'';if(!key)key=defaultPMChecklistForMachine(MACHINE_MASTER[MACHINE_MASTER.length-1]);if(key){PM_MACHINE_CHECKLIST_MAP[machineNumber]=key;savePMMachineChecklistMap();}refreshMachineDependentUI();const sel=document.getElementById('pmpMachineSetup');if(sel)sel.value=machineNumber;alert('Machine added successfully. PM Plan and PM Check Sheet are linked automatically.');}
 function pmPlanEditMachine(){const no=f('pmpMachineSetup');if(!no)return alert('Please select a machine.');const m=MACHINE_MASTER.find(x=>x.machineNumber===no);if(!m)return;const nn=(prompt('Machine Number:',m.machineNumber)||'').trim();if(!nn)return;if(nn!==m.machineNumber&&MACHINE_MASTER.some(x=>x.machineNumber.toLowerCase()===nn.toLowerCase()))return alert('Another machine already uses this number.');const oldNo=m.machineNumber;m.machineNumber=nn;m.machineName=(prompt('Machine Name:',m.machineName)||m.machineName).trim();m.department=(prompt('Department / Line:',m.department)||m.department).trim();m.grade=(prompt('Grade:',m.grade)||m.grade).trim();m.make=(prompt('Make / Manufacturer:',m.make)||m.make).trim();m.costCenter=(prompt('Cost Center:',m.costCenter)||m.costCenter).trim();if(oldNo!==nn){Object.keys(pmPlanData).filter(k=>k.endsWith('__'+oldNo)).forEach(k=>{pmPlanData[k.replace('__'+oldNo,'__'+nn)]=pmPlanData[k];delete pmPlanData[k]});localStorage.setItem(PMPLAN_KEY,JSON.stringify(pmPlanData));if(PM_MACHINE_CHECKLIST_MAP[oldNo]){PM_MACHINE_CHECKLIST_MAP[nn]=PM_MACHINE_CHECKLIST_MAP[oldNo];delete PM_MACHINE_CHECKLIST_MAP[oldNo];savePMMachineChecklistMap();}}MACHINE_MASTER.forEach((x,i)=>x.sno=i+1);saveEditableMachineMaster();refreshMachineDependentUI();const sel=document.getElementById('pmpMachineSetup');if(sel)sel.value=nn;alert('Machine updated successfully.');}
-function pmPlanRemoveMachine(){const no=f('pmpMachineSetup');if(!no)return alert('Please select a machine.');const m=MACHINE_MASTER.find(x=>x.machineNumber===no);if(!m)return;if(!confirm('Remove '+m.machineNumber+' — '+m.machineName+' from the active Machine Master and PM Plan?\n\nExisting PM records are retained and can return if the machine is added again.'))return;const i=MACHINE_MASTER.indexOf(m);MACHINE_MASTER.splice(i,1);MACHINE_MASTER.forEach((x,j)=>x.sno=j+1);saveEditableMachineMaster();delete PM_MACHINE_CHECKLIST_MAP[no];savePMMachineChecklistMap();refreshMachineDependentUI();alert('Machine removed from active PM Plan and machine lists. Existing saved PM records were retained.');}
+// 1. Safe Helper Function (taaki koi error na aaye)
+function getExcludedPMMachines() {
+    try {
+        let arr = JSON.parse(localStorage.getItem('htp7_pm_excluded_machines'));
+        return Array.isArray(arr) ? arr : [];
+    } catch(e) {
+        return [];
+    }
+}
+
+// 2. Updated PM Plan Machines
+function pmPlanMachines() {
+    let excluded = getExcludedPMMachines();
+    return (typeof MACHINE_MASTER !== 'undefined' ? MACHINE_MASTER : [])
+        .filter(x => !excluded.includes(String(x.machineNumber || '').trim()))
+        .map((x, i) => ({
+            sno: i + 1,
+            machineNumber: String(x.machineNumber || '').trim(),
+            machineName: x.machineName || '',
+            grade: x.grade || '',
+            line: x.department || ''
+        }))
+        .filter(x => x.machineNumber);
+}
+
+// 3. Updated Remove Function
+function pmPlanRemoveMachine() {
+    const no = document.getElementById('pmpMachineSetup') ? document.getElementById('pmpMachineSetup').value : '';
+    if (!no) return alert('Please select a machine.');
+    
+    if (!confirm(`Are you sure you want to remove ${no} from the PM Schedule?\n\n(It will ONLY be hidden from PM. It will remain safe in Breakdown, Maintenance Request & Machine Master.)`)) return;
+    
+    let excluded = getExcludedPMMachines();
+    if (!excluded.includes(no)) {
+        excluded.push(no);
+        localStorage.setItem('htp7_pm_excluded_machines', JSON.stringify(excluded));
+    }
+    
+    if(typeof pmPlanSyncSchedules === 'function') pmPlanSyncSchedules();
+    if(typeof renderPMYearlyPlan === 'function') renderPMYearlyPlan();
+    if(typeof renderPMPlan === 'function') renderPMPlan();
+    if(typeof renderDashboard === 'function') renderDashboard();
+    
+    alert(`Machine ${no} removed from PM Schedule successfully.`);
+}
+
+// 4. New Restore Function
+function pmPlanRestoreMachine() {
+    const no = document.getElementById('pmpMachineSetup') ? document.getElementById('pmpMachineSetup').value : '';
+    if (!no) return alert('Please select a machine.');
+    
+    let excluded = getExcludedPMMachines();
+    if (excluded.includes(no)) {
+        excluded = excluded.filter(m => m !== no);
+        localStorage.setItem('htp7_pm_excluded_machines', JSON.stringify(excluded));
+        
+        if(typeof pmPlanSyncSchedules === 'function') pmPlanSyncSchedules();
+        if(typeof renderPMYearlyPlan === 'function') renderPMYearlyPlan();
+        if(typeof renderPMPlan === 'function') renderPMPlan();
+        if(typeof renderDashboard === 'function') renderDashboard();
+        
+        alert(`Machine ${no} has been RESTORED back to the PM Schedule.`);
+    } else {
+        alert(`Machine ${no} is already in the PM Schedule.`);
+    }
+}
 function pmPlanAssignChecklist(){const no=f('pmpMachineSetup');if(!no)return alert('Please select a machine.');const keys=Object.keys(PM_CHECKLISTS||{});if(!keys.length)return alert('No PM Check Sheet checklist is available.');const current=pmChecklistForMachine(no),list=keys.map((k,i)=>`${i+1}. ${k}`).join('\n'),ans=prompt('Select checklist number for '+no+'. Current: '+(current||'None')+'\n\n'+list,'');if(!ans)return;if(!/^\d+$/.test(ans)||!keys[Number(ans)-1])return alert('Invalid checklist number.');PM_MACHINE_CHECKLIST_MAP[no]=keys[Number(ans)-1];savePMMachineChecklistMap();alert('PM Check Sheet linked to '+no+': '+PM_MACHINE_CHECKLIST_MAP[no]);}
 function pmMachineChanged(){const no=f('pm_machine_no');if(!no)return;const key=pmChecklistForMachine(no);if(key){setv('pm_template',key);loadPMTemplate();}}
 
@@ -3118,7 +3183,72 @@ function refreshPMPlanMonths(){
   setText('pmpMonthBadge',m.value);
 }
 function pmPlanMonthInit(){refreshPMPlanMonths();const m=document.getElementById('pmpMonth');if(!m)return;if(!m.options.length)m.innerHTML=PMPLAN_MONTHS.map(x=>`<option value="${pmPlanEsc(x)}">${pmPlanEsc(x)}</option>`).join('');if(!m.value)m.value=PMPLAN_MONTHS[0];setText('pmpMonthBadge',m.value);}
-function pmPlanMachines(){return (typeof MACHINE_MASTER!=='undefined'?MACHINE_MASTER:[]).map((x,i)=>({sno:x.sno||i+1,machineNumber:String(x.machineNumber||'').trim(),machineName:x.machineName||'',grade:x.grade||'',line:x.department||''})).filter(x=>x.machineNumber);}
+// 1. Safe Helper Function (taaki koi error na aaye)
+function getExcludedPMMachines() {
+    try {
+        let arr = JSON.parse(localStorage.getItem('htp7_pm_excluded_machines'));
+        return Array.isArray(arr) ? arr : [];
+    } catch(e) {
+        return [];
+    }
+}
+
+// 2. Updated PM Plan Machines
+function pmPlanMachines() {
+    let excluded = getExcludedPMMachines();
+    return (typeof MACHINE_MASTER !== 'undefined' ? MACHINE_MASTER : [])
+        .filter(x => !excluded.includes(String(x.machineNumber || '').trim()))
+        .map((x, i) => ({
+            sno: i + 1,
+            machineNumber: String(x.machineNumber || '').trim(),
+            machineName: x.machineName || '',
+            grade: x.grade || '',
+            line: x.department || ''
+        }))
+        .filter(x => x.machineNumber);
+}
+
+// 3. Updated Remove Function
+function pmPlanRemoveMachine() {
+    const no = document.getElementById('pmpMachineSetup') ? document.getElementById('pmpMachineSetup').value : '';
+    if (!no) return alert('Please select a machine.');
+    
+    if (!confirm(`Are you sure you want to remove ${no} from the PM Schedule?\n\n(It will ONLY be hidden from PM. It will remain safe in Breakdown, Maintenance Request & Machine Master.)`)) return;
+    
+    let excluded = getExcludedPMMachines();
+    if (!excluded.includes(no)) {
+        excluded.push(no);
+        localStorage.setItem('htp7_pm_excluded_machines', JSON.stringify(excluded));
+    }
+    
+    if(typeof pmPlanSyncSchedules === 'function') pmPlanSyncSchedules();
+    if(typeof renderPMYearlyPlan === 'function') renderPMYearlyPlan();
+    if(typeof renderPMPlan === 'function') renderPMPlan();
+    if(typeof renderDashboard === 'function') renderDashboard();
+    
+    alert(`Machine ${no} removed from PM Schedule successfully.`);
+}
+
+// 4. New Restore Function
+function pmPlanRestoreMachine() {
+    const no = document.getElementById('pmpMachineSetup') ? document.getElementById('pmpMachineSetup').value : '';
+    if (!no) return alert('Please select a machine.');
+    
+    let excluded = getExcludedPMMachines();
+    if (excluded.includes(no)) {
+        excluded = excluded.filter(m => m !== no);
+        localStorage.setItem('htp7_pm_excluded_machines', JSON.stringify(excluded));
+        
+        if(typeof pmPlanSyncSchedules === 'function') pmPlanSyncSchedules();
+        if(typeof renderPMYearlyPlan === 'function') renderPMYearlyPlan();
+        if(typeof renderPMPlan === 'function') renderPMPlan();
+        if(typeof renderDashboard === 'function') renderDashboard();
+        
+        alert(`Machine ${no} has been RESTORED back to the PM Schedule.`);
+    } else {
+        alert(`Machine ${no} is already in the PM Schedule.`);
+    }
+}
 function pmMonthIndexFromLabel(label){
   if(label===null||label===undefined||label==='')return -1;
   const s=String(label).trim();
