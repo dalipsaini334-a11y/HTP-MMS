@@ -346,7 +346,21 @@ main.wrap{margin-left:252px;padding:94px 22px 25px;max-width:none}.sidebar-overl
 #maintUtility .stat b{display:block;font-size:19px;margin-top:3px;color:#17324d}
 @media(max-width:700px){#maintUtility .form .field{min-width:100%}.utility-help{font-size:11px}.utility-help+ .form{grid-template-columns:1fr}}
 </style>
-
+<style>
+@media print {
+    /* Naya landscape page banaya */
+    @page landscapePage { 
+        size: A4 landscape; 
+        margin: 10mm; 
+    }
+    
+    /* MTTR aur Breakdown dono ko landscape par set kar diya */
+    .mttr-print-page, .breakdown-print-page { 
+        page: landscapePage; 
+        width: 277mm !important; 
+    }
+}
+</style>
 </head>
 <body>
 <header>
