@@ -505,6 +505,7 @@ main.wrap{margin-left:252px;padding:94px 22px 25px;max-width:none}.sidebar-overl
     <div class="dash-stat"><div class="ico">🔧</div><div><div class="label">MONTH BREAKDOWNS</div><div class="value" id="dashBreakdowns">0</div></div><small>Current month</small></div>
     <div class="dash-stat" onclick="openPMPlanFromDashboard()" style="cursor:pointer"><div class="ico">🧰</div><div><div class="label">PM DUE / PLANNED</div><div class="value" id="dashPM">0</div></div><small id="dashPMSub">Current month</small></div>
     <div class="dash-stat" onclick="goDash('calibration')" style="cursor:pointer"><div class="ico">📏</div><div><div class="label">CALIBRATION DUE</div><div class="value" id="dashCalDue">0</div></div><small>Next 30 days</small></div>
+    <div class="dash-stat" onclick="goDash('spares')" style="cursor:pointer"><div class="ico">⚠️</div><div><div class="label">LOW STOCK ITEMS</div><div class="value" id="dashLowStock">0</div></div><small>Below Min. Level</small></div>
   </div>
 
   <div class="dash-section-title"><span>QUICK ACCESS</span><small>Frequently used maintenance functions</small></div>
@@ -527,8 +528,16 @@ main.wrap{margin-left:252px;padding:94px 22px 25px;max-width:none}.sidebar-overl
     <div class="dash-card"><div class="card-title-row"><div><h3>Open Maintenance Requests</h3><small>Requests requiring attention</small></div><button class="mini-nav" onclick="goDash('mr')">Open Requests →</button></div><div class="dash-list" id="dashRecentMR"></div></div>
   </div>
 
-  <div class="dash-grid modern-grid">
-    <div class="dash-card"><div class="card-title-row"><div><h3>Calibration Due Soon</h3><small>Instruments due for calibration in the next 30 days</small></div><button class="mini-nav" onclick="goDash('calibration')">Open Calibration Plan →</button></div><div class="dash-list" id="dashCalDueList"></div></div>
+  <div class="dash-grid modern-grid"><div class="dash-card"><div class="card-title-row"><div><h3>Calibration Due Soon</h3><small>Instruments due in the next 30 days</small></div><button class="mini-nav" onclick="goDash('calibration')">Open Calibration Plan →</button>
+    </div>
+    <div class="dash-list" id="dashCalDueList"></div>
+   </div>
+    
+    <!-- Yeh Naya Box Hai Low Stock Spares List Ke Liye -->
+    <div class="dash-card"><div class="card-title-row"><div><h3 style="color:#c0392b;">Low Stock Spares</h3><small>Items below minimum level</small></div><button class="mini-nav" onclick="goDash('spares')">Open Inventory →</button>
+     </div>
+    <div class="dash-list" id="dashLowStockList"></div>
+    </div>
   </div>
 
   <div class="dashboard-footer"><b>CONTROLLED MAINTENANCE WORKSPACE</b><span>Use the left navigation to access module-wise records, reports and master data.</span></div>
@@ -2059,12 +2068,42 @@ function dashboardPMStatus(){
 }
 function renderDashboard(){let now=new Date(),ym=now.getFullYear(),mon=now.getMonth()+1;let monthBD=data.bd.filter(r=>{let d=new Date((r.date||'')+'T00:00:00');return !isNaN(d)&&d.getFullYear()===ym&&d.getMonth()+1===mon});let open=data.mr.filter(r=>{let st=String(r.status||'').toLowerCase();return st!=='closed'&&st!=='complete'});setText('dashMachines',MACHINE_MASTER.length);setText('dashOpen',open.length);setText('dashBreakdowns',monthBD.length);let pm=dashboardPMStatus();setText('dashPM',pm.planned+pm.pending+pm.overdue);setText('dashPMTotal',pm.total);setText('dashPMPlanned',pm.planned);setText('dashPMCompleted',pm.completed);setText('dashPMPending',pm.pending);setText('dashPMOverdue',pm.overdue);let dml=document.getElementById('dashPMMonthLabel');if(dml)dml.textContent=pm.currentLabel+' • PM Plan Control';let dms=document.getElementById('dashPMSub');if(dms)dms.textContent=pm.currentLabel;let de={};MACHINE_MASTER.forEach(m=>de[m.department]=(de[m.department]||0)+1);let max=Math.max(1,...Object.values(de));let dept=document.getElementById('dashDepartments');if(dept)dept.innerHTML=Object.entries(de).map(([k,v])=>`<div class="dept-line"><span>${esc(k)}</span><div class="bar"><i style="width:${v/max*100}%"></i></div><b>${v}</b></div>`).join('');let rb=[...data.bd].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||String(b.to||'').localeCompare(String(a.to||''))).slice(0,5);let rbd=document.getElementById('dashRecentBD');if(rbd)rbd.innerHTML=rb.length?rb.map(r=>`<div class="dash-row"><span><b>${esc(r.machine||'')}</b><br>${esc(r.reason||'')}</span><span>${esc(fmtDate(r.date))}<br>${num(r.hours).toFixed(2)} h</span></div>`).join(''):'<div class="dash-empty">No breakdown data available</div>';let rm=open.slice().sort((a,b)=>(b.pdate||'').localeCompare(a.pdate||'')).slice(0,5);let rmr=document.getElementById('dashRecentMR');if(rmr)rmr.innerHTML=rm.length?rm.map(r=>`<div class="dash-row"><span><b>SR ${esc(r.sr||'')}</b><br>${esc(r.machine||'')}</span><span>${esc(r.status||'Open')}</span></div>`).join(''):'<div class="dash-empty">No open requests</div>';let dd=document.getElementById('dashDate');if(dd)dd.textContent=now.toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'short',year:'numeric'});
 let calDueSoon=calibrationDueSoon(30);setText('dashCalDue',calDueSoon.length);let cdl=document.getElementById('dashCalDueList');if(cdl)cdl.innerHTML=calDueSoon.length?calDueSoon.slice(0,8).map(x=>`<div class="dash-row"><span><b>${esc(x.r.name||'')}</b><br>${esc(x.r.idno||'')} • ${esc(x.r.location||'')}</span><span>${esc(fmtDate(x.d.toISOString().slice(0,10)))}<br>${x.diff===0?'Due today':'in '+x.diff+' day'+(x.diff===1?'':'s')}</span></div>`).join(''):'<div class="dash-empty">No calibration due in next 30 days</div>';
-    // Dashboard Spares Update
-    if(data.critical) {
-        let alerts = 0;
-        data.critical.forEach(x => { if(x.availQty < x.minQty) alerts++; });
-        let da = document.getElementById('dashCriticalAlert');
-        if(da) da.textContent = alerts;
+// Dashboard Low Stock Update (Count & List)
+    let lowStockItems = [];
+    if (typeof data !== 'undefined' && Array.isArray(data.spares)) {
+        // Sirf low stock items filter karega
+        lowStockItems = data.spares.filter(r => {
+            let avail = inventoryAvailableQty(r);
+            let min = num(r.min);
+            return avail <= min;
+        });
+    }
+    
+    // 1. Upar wale KPI card mein number update karega
+    let dashLowStockEl = document.getElementById('dashLowStock');
+    if (dashLowStockEl) {
+        dashLowStockEl.textContent = lowStockItems.length;
+    }
+
+    // 2. Niche wale List Box mein Part ka Name aur Quantity dikhayega
+    let dashLowStockListEl = document.getElementById('dashLowStockList');
+    if (dashLowStockListEl) {
+        if (lowStockItems.length > 0) {
+            // Sabse kam stock wale 8 items ki list banayega
+            let listHtml = lowStockItems
+                .sort((a, b) => inventoryAvailableQty(a) - inventoryAvailableQty(b))
+                .slice(0, 8) 
+                .map(r => `
+                <div class="dash-row" style="background:#fff4f4; border-left:3px solid #c0392b;">
+                    <span><b>${esc(r.desc)}</b><br><small style="color:#666">${r.spec ? esc(r.spec) : 'General'}</small></span>
+                    <span style="text-align:right;">Avail: <b style="color:#c0392b; font-size:14px;">${inventoryAvailableQty(r)}</b><br><small>Min: ${num(r.min)}</small></span>
+                </div>
+                `).join('');
+            dashLowStockListEl.innerHTML = listHtml;
+        } else {
+            // Agar koi item low stock nahi hai to green message dikhayega
+            dashLowStockListEl.innerHTML = '<div class="dash-empty" style="color:#198754;">✓ All spares are sufficiently stocked</div>';
+        }
     }
 }
 function duration(a,b){if(!a||!b)return '';let [ay,am,ad]=a?[]:[];return timeDuration(a,b)}
