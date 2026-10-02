@@ -4344,5 +4344,23 @@ setTimeout(() => {
   }
 })();
 </script>
+<script id="mms-dashboard-refresh-fix">
+(function(){
+  // FIX: Dashboard ke PM Due / KPI numbers sirf pehli baar load hote waqt calculate hote the.
+  // Agar user kisi doosre tab par jaye bina Dashboard par hi baitha rahe, to background me
+  // data badalne (PM Master ki frequency change, sync se naya data aana, etc.) ke baad bhi
+  // Dashboard ka number purana hi dikhta rehta tha, jab tak koi tab switch na ho.
+  // Fix: Dashboard KPIs ko har thodi der me khud-ba-khud recalculate karte raho.
+  function mmsSafeRenderDashboard(){
+    try {
+      if (typeof renderDashboard === 'function') renderDashboard();
+    } catch (e) { console.warn('Dashboard auto-refresh skipped', e); }
+  }
+  // Page load ke 3 second baad ek baar zaroor (taaki sync/machine-master cleanup settle ho jaye)
+  window.addEventListener('load', function(){ setTimeout(mmsSafeRenderDashboard, 3000); });
+  // Uske baad har 20 second me automatically dobara calculate hota rahega.
+  setInterval(mmsSafeRenderDashboard, 20000);
+})();
+</script>
 </body>
 </html>
