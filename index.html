@@ -3491,8 +3491,8 @@ function mmsSha256(str){
  return H.map(function(x){return ('00000000'+(x>>>0).toString(16)).slice(-8)}).join('');
 }
 function mmsHashPw(salt,pw){let h=mmsSha256(salt+':'+pw);for(let i=0;i<3000;i++)h=mmsSha256(h+salt+pw);return h}
-const MMS_DEFAULT_PW={admin:'Admin@123',technician:'Tech@123',operator:'Oper@123'};
-const MMS_DEFAULT_ROLE={admin:'Admin',technician:'Technician',operator:'Operator'};
+const MMS_DEFAULT_PW={admin:'Dalip@13022000',technician:'Tech@123',operator:'Oper@123',Supervisor:'Sup@123'};
+const MMS_DEFAULT_ROLE={admin:'Admin',technician:'Technician',operator:'Operator',Supervisor:'Supervisor'};
 function mmsSetPw(u,pw){
  const salt=(MMS_DEFAULT_PW[u.u]===pw)?'htp-default':Math.random().toString(36).slice(2,12)+Date.now().toString(36);
  u.s=salt;u.h=mmsHashPw(salt,pw);delete u.p;
@@ -3526,12 +3526,14 @@ function mmsDefaultPermsForRole(role){
  if(role==='Admin')return mmsFullPerms();
  if(role==='Technician'){let o=mmsBlankPerms();MMS_MODULES.forEach(m=>{o[m.key].save=true;o[m.key].edit=true});return o}
  if(role==='Operator'){let o=mmsBlankPerms();o.mr.save=true;o.mr.edit=true;return o}
+ if(role==='Supervisor'){let o=mmsBlankPerms();MMS_MODULES.forEach(m=>{o[m.key].save=true;o[m.key].edit=true});return o}
  return mmsBlankPerms();
 }
 const defaultUsers=[
- {u:'admin',p:'Admin@123',role:'Admin',perms:mmsDefaultPermsForRole('Admin')},
+ {u:'admin',p:'Dalip@13022000',role:'Admin',perms:mmsDefaultPermsForRole('Admin')},
  {u:'technician',p:'Tech@123',role:'Technician',perms:mmsDefaultPermsForRole('Technician')},
- {u:'operator',p:'Oper@123',role:'Operator',perms:mmsDefaultPermsForRole('Operator')}
+ {u:'operator',p:'Oper@123',role:'Operator',perms:mmsDefaultPermsForRole('Operator')},
+ {u:'Supervisor',p:'Sup@123',role:'Supervisor',perms:mmsDefaultPermsForRole('Supervisor')}
 ];
 function mmsNormalizeUsers(list){
  let changed=false;
