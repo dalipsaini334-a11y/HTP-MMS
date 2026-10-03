@@ -3568,15 +3568,17 @@ const MMS_MODULES=[
  {key:'utility',label:'Utility'},
  {key:'airCompressor',label:'Air Compressor'},
  {key:'pmMaster',label:'PM Master Schedule'},
- {key:'pmMonthly',label:'Monthly PM Work Register'}
+ {key:'pmMonthly',label:'Monthly PM Work Register'},
+ {key:'meeting',label:'Meeting Discussion Log'},
+ {key:'sparePurchase',label:'Spare Part Purchase Register'}
 ];
 function mmsBlankPerms(){let o={};MMS_MODULES.forEach(m=>o[m.key]={save:false,edit:false,delete:false});return o}
 function mmsFullPerms(){let o={};MMS_MODULES.forEach(m=>o[m.key]={save:true,edit:true,delete:true});return o}
 function mmsDefaultPermsForRole(role){
  if(role==='Admin')return mmsFullPerms();
- if(role==='Technician'){let o=mmsBlankPerms();MMS_MODULES.forEach(m=>{o[m.key].save=true;o[m.key].edit=true});return o}
+ if(role==='Technician'){let o=mmsBlankPerms();MMS_MODULES.forEach(m=>{if(m.key!=='meeting'){o[m.key].save=true;o[m.key].edit=true;}});return o}
  if(role==='Operator'){let o=mmsBlankPerms();o.mr.save=true;o.mr.edit=true;return o}
- if(role==='Supervisor'){let o=mmsBlankPerms();MMS_MODULES.forEach(m=>{o[m.key].save=true;o[m.key].edit=true});return o}
+ if(role==='Supervisor'){let o=mmsBlankPerms();MMS_MODULES.forEach(m=>{if(m.key!=='meeting'){o[m.key].save=true;o[m.key].edit=true;}});return o}
  return mmsBlankPerms();
 }
 const defaultUsers=[
@@ -5414,60 +5416,6 @@ if (typeof renderAll !== 'undefined') {
         if (typeof renderPurchaseTable === 'function') renderPurchaseTable();
     };
 }
-// =================================================================
-// ULTIMATE MUTATION OBSERVER & PERMISSION GRID PATCH
-// =================================================================
-setTimeout(() => {
-    // 1. Ensure MMS_MODULES has the new keys globally
-    if (typeof MMS_MODULES !== 'undefined') {
-        if (!MMS_MODULES.some(m => m.key === 'meeting')) MMS_MODULES.push({ key: 'meeting', label: 'Meeting Discussion Log' });
-        if (!MMS_MODULES.some(m => m.key === 'sparePurchase')) MMS_MODULES.push({ key: 'sparePurchase', label: 'Spare Part Purchase Register' });
-    }
-
-    // 2. Patch default permissions so backend guards recognize the new modules smoothly
-    if (typeof mmsDefaultPermsForRole === 'function') {
-        const oldDefaultPerms = mmsDefaultPermsForRole;
-        window.mmsDefaultPermsForRole = function(role) {
-            let p = oldDefaultPerms(role);
-            if (p) {
-                if (!p.meeting) p.meeting = (role === 'Admin' ? {save:true, edit:true, del:true} : {save:false, edit:false, del:false});
-                if (!p.sparePurchase) p.sparePurchase = (role === 'Admin' ? {save:true, edit:true, del:true} : {save:true, edit:true, del:false});
-            }
-            return p;
-        };
-    }
-
-    // 3. MutationObserver: Yeh background mein watch karega ki kab System Tools ki table khulti hai
-    const observer = new MutationObserver((mutations) => {
-        let tables = document.querySelectorAll('table');
-        tables.forEach(t => {
-            if (t.textContent.includes('Breakdown') || t.textContent.includes('Preventive')) {
-                let tbody = t.querySelector('tbody') || t;
-                if (tbody) {
-                    if (!tbody.innerHTML.includes('meeting')) {
-                        let tr1 = document.createElement('tr');
-                        tr1.innerHTML = `<td>Meeting Discussion Log</td>
-                            <td><input type="checkbox" data-mod="meeting" data-act="save" onchange="if(typeof mmsPermChanged==='function')mmsPermChanged(this)"> Save</td>
-                            <td><input type="checkbox" data-mod="meeting" data-act="edit" onchange="if(typeof mmsPermChanged==='function')mmsPermChanged(this)"> Edit</td>
-                            <td><input type="checkbox" data-mod="meeting" data-act="del" onchange="if(typeof mmsPermChanged==='function')mmsPermChanged(this)"> Delete</td>`;
-                        tbody.appendChild(tr1);
-                    }
-                    if (!tbody.innerHTML.includes('sparePurchase')) {
-                        let tr2 = document.createElement('tr');
-                        tr2.innerHTML = `<td>Spare Part Purchase Register</td>
-                            <td><input type="checkbox" data-mod="sparePurchase" data-act="save" onchange="if(typeof mmsPermChanged==='function')mmsPermChanged(this)"> Save</td>
-                            <td><input type="checkbox" data-mod="sparePurchase" data-act="edit" onchange="if(typeof mmsPermChanged==='function')mmsPermChanged(this)"> Edit</td>
-                            <td><input type="checkbox" data-mod="sparePurchase" data-act="del" onchange="if(typeof mmsPermChanged==='function')mmsPermChanged(this)"> Delete</td>`;
-                        tbody.appendChild(tr2);
-                    }
-                }
-            }
-        });
-    });
-
-    observer.observe(document.body, { childList: true, subtree: true });
-}, 500);
-// =================================================================
 </script>
 </body>
 </html>
