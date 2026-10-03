@@ -4645,6 +4645,96 @@ setTimeout(() => {
         dashCardTitle.appendChild(btn);
     }
 }, 1500);
+// =================================================================
+// FEATURE: EDIT MACHINE FROM MACHINE MASTER LIST (100% SAFE)
+// =================================================================
+
+// 1. Table ke Header mein "Action" ka column add karna
+setTimeout(() => {
+    let mmTableHead = document.querySelector('#mm .tbl thead tr');
+    if (mmTableHead && !mmTableHead.innerHTML.includes('Action')) {
+        let th = document.createElement('th');
+        th.textContent = 'Action';
+        mmTableHead.appendChild(th);
+    }
+}, 1500);
+
+// 2. Render function ko update karna taaki har row mein Edit button dikhe
+if (typeof renderMachineMaster !== 'undefined') {
+    renderMachineMaster = function() {
+        let q = (document.getElementById('mm_search') ? document.getElementById('mm_search').value : '').toLowerCase();
+        let dept = document.getElementById('mm_dept_filter') ? document.getElementById('mm_dept_filter').value : '';
+        
+        // Agar visual sort wala function hai toh use karega, warna seedha list
+        let sortedMachines = typeof getSortedMachinesForDisplay === 'function' ? getSortedMachinesForDisplay() : MACHINE_MASTER;
+        let a = sortedMachines.filter(m => (!dept || m.department === dept) && (!q || Object.values(m).join(' ').toLowerCase().includes(q)));
+        
+        let body = document.getElementById('mmBody');
+        if(body) {
+            body.innerHTML = a.map((m, idx) => `<tr>
+             <td>${idx + 1}</td><td>${esc(m.department)}</td><td><b>${esc(m.machineNumber)}</b></td><td>${esc(m.machineName)}</td>
+             <td>${esc(m.grade)}</td><td>${esc(m.make)}</td><td>${esc(m.costCenter)}</td>
+             <td class="editbar"><button class="secondary" onclick="editMachineFromMasterList('${esc(m.machineNumber).replace(/'/g, "\\'")}')">✏️ Edit</button></td>
+             </tr>`).join('');
+        }
+    };
+}
+
+// 3. Edit karne ka actual safe function
+function editMachineFromMasterList(machineNo) {
+    // Sirf Admin ya Technician ko edit allow karega (Security)
+    if (typeof requireRole === 'function') {
+        if (!requireRole(['Admin', 'Technician'])) return;
+    }
+
+    const m = MACHINE_MASTER.find(x => String(x.machineNumber).trim() === String(machineNo).trim());
+    if (!m) return alert('Machine not found.');
+    
+    // Prompts khulenge details mangne ke liye (Purani details pehle se bhari aayengi)
+    const nn = (prompt('Machine Number:', m.machineNumber) || '').trim();
+    if (!nn) return;
+    if (nn !== m.machineNumber && MACHINE_MASTER.some(x => String(x.machineNumber).toLowerCase() === nn.toLowerCase())) {
+        return alert('Error: Another machine already uses this Machine Number.');
+    }
+    
+    const oldNo = m.machineNumber;
+    m.machineNumber = nn;
+    m.machineName = (prompt('Machine Name:', m.machineName) || m.machineName).trim();
+    m.department = (prompt('Department / Line:', m.department) || m.department).trim();
+    m.grade = (prompt('Grade (e.g., A, B, C):', m.grade) || m.grade).trim();
+    m.make = (prompt('Make / Manufacturer:', m.make) || m.make).trim();
+    m.costCenter = (prompt('Cost Center:', m.costCenter) || m.costCenter).trim();
+    
+    // Agar Machine Number change hua hai, toh purane PM records ko naye number se jodhna zaroori hai
+    if (oldNo !== nn) {
+        if (typeof pmPlanData !== 'undefined') {
+            Object.keys(pmPlanData).filter(k => k.endsWith('__' + oldNo)).forEach(k => {
+                pmPlanData[k.replace('__' + oldNo, '__' + nn)] = pmPlanData[k];
+                delete pmPlanData[k];
+            });
+            localStorage.setItem(PMPLAN_KEY, JSON.stringify(pmPlanData));
+        }
+        if (typeof PM_MACHINE_CHECKLIST_MAP !== 'undefined' && PM_MACHINE_CHECKLIST_MAP[oldNo]) {
+            PM_MACHINE_CHECKLIST_MAP[nn] = PM_MACHINE_CHECKLIST_MAP[oldNo];
+            delete PM_MACHINE_CHECKLIST_MAP[oldNo];
+            if (typeof savePMMachineChecklistMap === 'function') savePMMachineChecklistMap();
+        }
+    }
+    
+    // Data ko memory aur sheet par safely push karna
+    if (typeof saveEditableMachineMaster === 'function') saveEditableMachineMaster();
+    
+    // UI ko refresh karna
+    if (typeof renderMachineMaster === 'function') renderMachineMaster();
+    if (typeof populateMachineDropdown === 'function') populateMachineDropdown();
+    if (typeof populateHistoryMachineDropdown === 'function') populateHistoryMachineDropdown();
+    if (typeof pmPlanMachineSetupOptions === 'function') pmPlanMachineSetupOptions();
+    
+    // Turant Google Sheet Sync trigger karna
+    if (typeof gsSchedule === 'function') gsSchedule(1000);
+    
+    alert('✅ Machine details updated successfully.');
+}
 </script>
 </body>
 </html>
