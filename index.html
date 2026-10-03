@@ -4775,6 +4775,50 @@ function editMachineFromMasterList(machineNo) {
     
     alert('✅ Machine details updated successfully.');
 }
+// ==========================================
+// DYNAMIC LIVE CURRENT TIME FOR UTILITY MODULES
+// ==========================================
+function getLiveTimeString() {
+    let now = new Date();
+    let h = String(now.getHours()).padStart(2, '0');
+    let m = String(now.getMinutes()).padStart(2, '0');
+    return h + ':' + m;
+}
+
+// 1. Page load hone par agar time field khali hai, toh live current time set kar dega
+setTimeout(() => {
+    ['pf_time', 'pc_time', 'dg_time'].forEach(id => {
+        let el = document.getElementById(id);
+        if (el && !el.value) {
+            el.value = getLiveTimeString();
+        }
+    });
+}, 450);
+
+// 2. Clear / Reset button dabane par bhi live current time automatically aa jayega
+if (typeof clearPF === 'function') {
+    let oldClearPF = clearPF;
+    clearPF = function() {
+        oldClearPF();
+        setv('pf_time', getLiveTimeString());
+    };
+}
+
+if (typeof clearPC === 'function') {
+    let oldClearPC = clearPC;
+    clearPC = function() {
+        oldClearPC();
+        setv('pc_time', getLiveTimeString());
+    };
+}
+
+if (typeof clearDG === 'function') {
+    let oldClearDG = clearDG;
+    clearDG = function() {
+        oldClearDG();
+        setv('dg_time', getLiveTimeString());
+    };
+}
 </script>
 </body>
 </html>
