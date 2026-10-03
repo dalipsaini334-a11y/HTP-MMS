@@ -5403,44 +5403,70 @@ if (typeof renderAll !== 'undefined') {
     };
 }
 // =================================================================
-// IMMEDIATE FIX: ADD MODULES TO SYSTEM TOOLS ACCESS CONTROL
+// BULLETPROOF FIX: FORCIBLY INJECT NEW MODULES INTO PERMISSION GRID
 // =================================================================
+setTimeout(() => {
+    // 1. Global array mein add karna
+    if (typeof MMS_MODULES !== 'undefined') {
+        if (!MMS_MODULES.some(m => m.key === 'meeting')) MMS_MODULES.push({ key: 'meeting', label: 'Meeting Discussion Log' });
+        if (!MMS_MODULES.some(m => m.key === 'sparePurchase')) MMS_MODULES.push({ key: 'sparePurchase', label: 'Spare Part Purchase Register' });
+    }
 
-// 1. Turant global MMS_MODULES array mein push karna (Bina delay ke)
-if (typeof MMS_MODULES !== 'undefined') {
-    if (!MMS_MODULES.some(m => m.key === 'meeting')) {
-        MMS_MODULES.push({ key: 'meeting', label: 'Meeting Discussion Log' });
+    // 2. Permission grid render function ko intercept karna taaki table mein rows zaroor dikhein
+    const originalSelectPermUser = typeof selectPermUser === 'function' ? selectPermUser : null;
+    if (originalSelectPermUser) {
+        selectPermUser = function(username) {
+            originalSelectPermUser(username);
+            // Table render hone ke turant baad check karke naye modules ki row add kar dena
+            setTimeout(injectNewModulesIntoPermTable, 100);
+        };
     }
-    if (!MMS_MODULES.some(m => m.key === 'sparePurchase')) {
-        MMS_MODULES.push({ key: 'sparePurchase', label: 'Spare Part Purchase Register' });
+}, 1000);
+
+function injectNewModulesIntoPermTable() {
+    let tableBody = document.querySelector('#mmsPermGrid tbody') || document.querySelector('.perm-table tbody') || document.querySelector('#systemToolsPanel table tbody');
+    if (!tableBody) {
+        // Agar table tbody class se nahi mil rahi, toh general table dhoondho jahan modules ki list hoti hai
+        let tables = document.querySelectorAll('table');
+        tables.forEach(t => {
+            if (t.textContent.includes('Breakdown') && t.textContent.includes('Preventive')) {
+                tableBody = t.querySelector('tbody') || t;
+            }
+        });
     }
-} else {
-    window.MMS_MODULES = [
-        { key: 'bd', label: 'Breakdown' },
-        { key: 'pm', label: 'Preventive Maintenance' },
-        { key: 'pf', label: 'Power Factor' },
-        { key: 'pc', label: 'Power Cut' },
-        { key: 'dg', label: 'DG Readings' },
-        { key: 'spares', label: 'Spare Parts Inventory' },
-        { key: 'critical', label: 'Critical Spares' },
-        { key: 'machines', label: 'Machine Master' },
-        { key: 'meeting', label: 'Meeting Discussion Log' },
-        { key: 'sparePurchase', label: 'Spare Part Purchase Register' }
-    ];
+
+    if (tableBody) {
+        // Check karo ki kya meeting module pehle se table mein hai ya nahi
+        if (!tableBody.innerHTML.includes('meeting')) {
+            let row1 = document.createElement('tr');
+            row1.innerHTML = `<td>Meeting Discussion Log</td>
+                <td><input type="checkbox" data-mod="meeting" data-act="save" onchange="mmsPermChanged(this)"> Save</td>
+                <td><input type="checkbox" data-mod="meeting" data-act="edit" onchange="mmsPermChanged(this)"> Edit</td>
+                <td><input type="checkbox" data-mod="meeting" data-act="del" onchange="mmsPermChanged(this)"> Delete</td>`;
+            tableBody.appendChild(row1);
+        }
+        if (!tableBody.innerHTML.includes('sparePurchase')) {
+            let row2 = document.createElement('tr');
+            row2.innerHTML = `<td>Spare Part Purchase Register</td>
+                <td><input type="checkbox" data-mod="sparePurchase" data-act="save" onchange="mmsPermChanged(this)"> Save</td>
+                <td><input type="checkbox" data-mod="sparePurchase" data-act="edit" onchange="mmsPermChanged(this)"> Edit</td>
+                <td><input type="checkbox" data-mod="sparePurchase" data-act="del" onchange="mmsPermChanged(this)"> Delete</td>`;
+            tableBody.appendChild(row2);
+        }
+    }
 }
 
-// 2. System Tools khulte hi ya page load par grid ko turant refresh karna
+// System tools button ya module access control par click hone par bhi trigger kar dena
 setTimeout(() => {
-    if (typeof populatePermUserSelect === 'function') {
-        populatePermUserSelect();
+    let sysToolsBtn = document.querySelector('button[onclick*="SystemTools"]') || document.querySelector('button[onclick*="system"]');
+    if (sysToolsBtn) {
+        let oldClick = sysToolsBtn.onclick;
+        sysToolsBtn.onclick = function(e) {
+            if (oldClick) oldClick(e);
+            setTimeout(injectNewModulesIntoPermTable, 500);
+        };
     }
-    // Agar koi specific permission table rendering function hai toh use trigger karna
-    let permGrid = document.getElementById('mmsPermGrid') || document.querySelector('.perm-grid');
-    if (permGrid && typeof selectPermUser === 'function') {
-        let selUser = document.getElementById('permUserSelect');
-        if (selUser && selUser.value) selectPermUser(selUser.value);
-    }
-}, 300);
+}, 1500);
 </script>
 </body>
 </html>
