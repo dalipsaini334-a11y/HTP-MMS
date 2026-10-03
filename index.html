@@ -4847,7 +4847,7 @@ setTimeout(() => {
     });
 }, 500);
 // =================================================================
-// MODULE: DAILY MEETING DISCUSSION RECORD (ADMIN ONLY)
+// MODULE: DAILY MEETING DISCUSSION RECORD (ADMIN ONLY - SECURED)
 // =================================================================
 
 // 1. Data Key setup
@@ -4860,7 +4860,6 @@ if (typeof data !== 'undefined' && !data.meeting) {
 
 // 2. Sidebar mein Admin ke liye "Meeting Log" Tab aur Panel inject karna
 setTimeout(() => {
-    // Check karo user Admin hai ya nahi
     let sess = typeof mmsSession === 'function' ? mmsSession() : null;
     let isAdmin = sess && sess.role === 'Admin';
 
@@ -4926,12 +4925,26 @@ setTimeout(() => {
             mainWrap.appendChild(panel);
         }
         
-        // Initial render agar data hai
         if (typeof renderMeetingTable === 'function') renderMeetingTable();
     }
 }, 1000);
 
-// 3. Meeting Module Functions
+// 3. SECURE NAVIGATION GUARD (Non-admin ko block karne ke liye)
+if (typeof navigateApp !== 'undefined') {
+    const oldNavigateAppMeet = navigateApp;
+    navigateApp = function(target, btn) {
+        if (target === 'meetingLog') {
+            let s = typeof mmsSession === 'function' ? mmsSession() : null;
+            if (!s || s.role !== 'Admin') {
+                alert('Admin permission required to open this module.');
+                return false;
+            }
+        }
+        return oldNavigateAppMeet(target, btn);
+    };
+}
+
+// 4. Meeting Module Functions
 let editMeetingIndex = null;
 
 function clearMeetingForm() {
@@ -4946,7 +4959,7 @@ function clearMeetingForm() {
 
 function saveMeetingRecord() {
     let sess = typeof mmsSession === 'function' ? mmsSession() : null;
-    if (!sess || sess.role !== 'Admin') return alert('Access denied. Admin only.');
+    if (!sess || sess.role !== 'Admin') return alert('Admin permission required to open this module.');
     if (!Array.isArray(data.meeting)) data.meeting = [];
 
     let date = f('meet_date'), time = f('meet_time'), topic = f('meet_topic');
@@ -5011,6 +5024,8 @@ function renderMeetingTable() {
 }
 
 function editMeetingRecord(i) {
+    let sess = typeof mmsSession === 'function' ? mmsSession() : null;
+    if (!sess || sess.role !== 'Admin') return alert('Admin permission required.');
     let r = data.meeting[i];
     if (!r) return;
     editMeetingIndex = i;
@@ -5029,6 +5044,8 @@ function editMeetingRecord(i) {
 }
 
 function deleteMeetingRecord(i) {
+    let sess = typeof mmsSession === 'function' ? mmsSession() : null;
+    if (!sess || sess.role !== 'Admin') return alert('Admin permission required.');
     if (!confirm('Delete this meeting record?')) return;
     data.meeting.splice(i, 1);
     if (typeof persist === 'function') persist('meeting');
@@ -5075,10 +5092,13 @@ function printMeetingLog() {
 
 // Render call on global renderAll
 if (typeof renderAll !== 'undefined') {
-    const oldRenderAll = renderAll;
+    const oldRenderAllMeet = renderAll;
     renderAll = function() {
-        oldRenderAll();
-        if (typeof renderMeetingTable === 'function') renderMeetingTable();
+        oldRenderAllMeet();
+        let s = typeof mmsSession === 'function' ? mmsSession() : null;
+        if (s && s.role === 'Admin' && typeof renderMeetingTable === 'function') {
+            renderMeetingTable();
+        }
     };
 }
 // =================================================================
