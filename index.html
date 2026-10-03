@@ -4832,6 +4832,241 @@ setTimeout(() => {
         if (el && !el.value) el.value = getLiveTimeString();
     });
 }, 500);
+// =================================================================
+// MODULE: DAILY MEETING DISCUSSION RECORD (ADMIN ONLY)
+// =================================================================
+
+// 1. Data Key setup
+if (typeof KEY !== 'undefined') {
+    KEY.meeting = 'htp7_meeting_log';
+}
+if (typeof data !== 'undefined' && !data.meeting) {
+    data.meeting = load ? load('meeting') : [];
+}
+
+// 2. Sidebar mein Admin ke liye "Meeting Log" Tab aur Panel inject karna
+setTimeout(() => {
+    // Check karo user Admin hai ya nahi
+    let sess = typeof mmsSession === 'function' ? mmsSession() : null;
+    let isAdmin = sess && sess.role === 'Admin';
+
+    if (isAdmin) {
+        // a) Sidebar mein naya section aur tab add karna agar pehle se nahi hai
+        let sidebarScroll = document.querySelector('.app-sidebar .side-scroll');
+        if (sidebarScroll && !document.getElementById('sidebarMeetingTab')) {
+            let navGroup = document.createElement('div');
+            navGroup.className = 'nav-group';
+            navGroup.innerHTML = `
+                <div class="nav-group-title">ADMIN MANAGEMENT</div>
+                <button type="button" class="tab" id="sidebarMeetingTab" data-target="meetingLog" onclick="showTab('meetingLog',this)"><span>💬</span> Meeting Discussion Log</button>
+            `;
+            sidebarScroll.appendChild(navGroup);
+        }
+
+        // b) Main content area mein Meeting Panel HTML inject karna
+        let mainWrap = document.querySelector('main.wrap');
+        if (mainWrap && !document.getElementById('meetingLog')) {
+            let panel = document.createElement('section');
+            panel.id = 'meetingLog';
+            panel.className = 'panel official-module';
+            panel.innerHTML = `
+            <div class="card">
+                <div class="head">MILESTONE GEARS LTD. UNIT-7</div>
+                <div class="head2">DAILY MEETING DISCUSSION & ACTION RECORD (ADMIN ONLY)</div>
+                <div class="utility-help">Record daily plant meetings, key discussion points, assigned action items, and target completion dates. Visible only to Admin.</div>
+                <div class="form">
+                    <input type="hidden" id="meet_id">
+                    <div class="field"><label>Meeting Date</label><input id="meet_date" type="date"></div>
+                    <div class="field"><label>Meeting Time</label><input id="meet_time" type="time" value="09:30"></div>
+                    <div class="field wide"><label>Discussion Topic / Agenda</label><input id="meet_topic" placeholder="e.g. Production & Maintenance Daily Alignment"></div>
+                    <div class="field wide"><label>Detailed Discussion Notes</label><textarea id="meet_notes" placeholder="Key points discussed during the meeting..."></textarea></div>
+                    <div class="field wide"><label>Action Points / Decisions</label><textarea id="meet_action" placeholder="Action items decided..."></textarea></div>
+                    <div class="field"><label>Assigned To (Person / Dept)</label><input id="meet_assigned" placeholder="e.g. Maintenance Team / HOD"></div>
+                    <div class="field"><label>Target Date</label><input id="meet_target" type="date"></div>
+                    <div class="field"><label>Status</label><select id="meet_status"><option>Open</option><option>In Progress</option><option>Closed</option></select></div>
+                    <div class="actions wide">
+                        <button class="primary" onclick="saveMeetingRecord()">Save Meeting Record</button>
+                        <button class="secondary" onclick="clearMeetingForm()">Clear</button>
+                        <button class="secondary" onclick="printMeetingLog()">🖨️ Print Meeting Register</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="toolbar">
+                    <input id="meet_search" placeholder="Search topic, notes, assigned person..." oninput="renderMeetingTable()">
+                    <select id="meet_filter_status" onchange="renderMeetingTable()"><option value="">All Status</option><option>Open</option><option>In Progress</option><option>Closed</option></select>
+                </div>
+                <div class="summary">
+                    <div class="stat">Total Meetings: <b id="meet_sum_total">0</b></div>
+                    <div class="stat">Open Action Items: <b id="meet_sum_open">0</b></div>
+                </div>
+                <div class="tablewrap">
+                    <table class="tbl">
+                        <thead>
+                            <tr><th>Sr.No.</th><th>Date & Time</th><th>Topic / Agenda</th><th>Discussion Notes</th><th>Action Points</th><th>Assigned To</th><th>Target Date</th><th>Status</th><th>Action</th></tr>
+                        </thead>
+                        <tbody id="meetBody"></tbody>
+                    </table>
+                </div>
+            </div>`;
+            mainWrap.appendChild(panel);
+        }
+        
+        // Initial render agar data hai
+        if (typeof renderMeetingTable === 'function') renderMeetingTable();
+    }
+}, 1000);
+
+// 3. Meeting Module Functions
+let editMeetingIndex = null;
+
+function clearMeetingForm() {
+    editMeetingIndex = null;
+    ['meet_id', 'meet_topic', 'meet_notes', 'meet_action', 'meet_assigned', 'meet_target'].forEach(id => setv(id, ''));
+    setv('meet_date', new Date().toISOString().slice(0, 10));
+    setv('meet_time', '09:30');
+    setv('meet_status', 'Open');
+    let btn = document.querySelector('#meetingLog .primary');
+    if (btn) btn.textContent = 'Save Meeting Record';
+}
+
+function saveMeetingRecord() {
+    let sess = typeof mmsSession === 'function' ? mmsSession() : null;
+    if (!sess || sess.role !== 'Admin') return alert('Access denied. Admin only.');
+    if (!Array.isArray(data.meeting)) data.meeting = [];
+
+    let date = f('meet_date'), time = f('meet_time'), topic = f('meet_topic');
+    if (!date || !topic.trim()) return alert('Please enter Meeting Date and Discussion Topic.');
+
+    let obj = {
+        id: editMeetingIndex !== null ? data.meeting[editMeetingIndex].id : 'meet-' + Date.now(),
+        date, time,
+        topic: topic.trim(),
+        notes: f('meet_notes').trim(),
+        action: f('meet_action').trim(),
+        assigned: f('meet_assigned').trim(),
+        target: f('meet_target'),
+        status: f('meet_status') || 'Open',
+        updatedAt: new Date().toISOString()
+    };
+
+    if (editMeetingIndex !== null) {
+        data.meeting[editMeetingIndex] = obj;
+    } else {
+        data.meeting.push(obj);
+    }
+
+    if (typeof persist === 'function') persist('meeting');
+    clearMeetingForm();
+    renderMeetingTable();
+    alert('Meeting discussion record saved successfully.');
+}
+
+function renderMeetingTable() {
+    let body = document.getElementById('meetBody');
+    if (!body) return;
+    if (!Array.isArray(data.meeting)) data.meeting = [];
+
+    let q = (f('meet_search') || '').toLowerCase();
+    let st = f('meet_filter_status') || '';
+
+    let a = data.meeting.filter(r => (!st || r.status === st) && (!q || Object.values(r).join(' ').toLowerCase().includes(q)));
+    a.sort((x, y) => (y.date + (y.time || '')).localeCompare(x.date + (x.time || '')));
+
+    body.innerHTML = a.map((r, i) => {
+        let realIdx = data.meeting.indexOf(r);
+        let cls = r.status === 'Closed' ? 'req-closed' : 'req-open';
+        return `<tr>
+            <td>${i + 1}</td>
+            <td>${esc(fmtDate(r.date))}<br><small>${esc(r.time)}</small></td>
+            <td><b>${esc(r.topic)}</b></td>
+            <td style="text-align:left; max-width:220px; white-space:normal;">${esc(r.notes)}</td>
+            <td style="text-align:left; max-width:220px; white-space:normal;">${esc(r.action)}</td>
+            <td>${esc(r.assigned)}</td>
+            <td>${esc(fmtDate(r.target))}</td>
+            <td class="${cls}">${esc(r.status)}</td>
+            <td class="editbar">
+                <button class="secondary" onclick="editMeetingRecord(${realIdx})">Edit</button>
+                <button class="danger" onclick="deleteMeetingRecord(${realIdx})">Delete</button>
+            </td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="9">No meeting records found.</td></tr>';
+
+    setText('meet_sum_total', data.meeting.length);
+    setText('meet_sum_open', data.meeting.filter(x => x.status !== 'Closed').length);
+}
+
+function editMeetingRecord(i) {
+    let r = data.meeting[i];
+    if (!r) return;
+    editMeetingIndex = i;
+    setv('meet_id', r.id);
+    setv('meet_date', r.date);
+    setv('meet_time', r.time);
+    setv('meet_topic', r.topic);
+    setv('meet_notes', r.notes);
+    setv('meet_action', r.action);
+    setv('meet_assigned', r.assigned);
+    setv('meet_target', r.target);
+    setv('meet_status', r.status);
+    let btn = document.querySelector('#meetingLog .primary');
+    if (btn) btn.textContent = 'Update Meeting Record';
+    document.getElementById('meetingLog').scrollIntoView({ behavior: 'smooth' });
+}
+
+function deleteMeetingRecord(i) {
+    if (!confirm('Delete this meeting record?')) return;
+    data.meeting.splice(i, 1);
+    if (typeof persist === 'function') persist('meeting');
+    renderMeetingTable();
+}
+
+function printMeetingLog() {
+    let a = data.meeting || [];
+    let body = a.map((r, i) => `<tr>
+        <td>${i + 1}</td>
+        <td>${esc(fmtDate(r.date))} ${esc(r.time)}</td>
+        <td><b>${esc(r.topic)}</b></td>
+        <td style="text-align:left">${esc(r.notes)}</td>
+        <td style="text-align:left">${esc(r.action)}</td>
+        <td>${esc(r.assigned)}</td>
+        <td>${esc(fmtDate(r.target))}</td>
+        <td>${esc(r.status)}</td>
+    </tr>`).join('');
+
+    let w = window.open('', '_blank', 'width=1200,height=800');
+    if (!w) return alert('Please allow pop-ups to print.');
+    w.document.write(`<!doctype html><html><head><title>Daily Meeting Discussion Register</title><style>
+        @page{size:A4 landscape;margin:8mm}
+        body{font-family:Arial;font-size:10px}
+        .title{text-align:center;font-size:16px;font-weight:bold}
+        .title img{width:16mm;height:12mm;object-fit:contain;vertical-align:middle;margin-right:5mm}
+        .sub{text-align:center;font-size:13px;font-weight:bold;margin:4px 0 10px}
+        table{width:100%;border-collapse:collapse}
+        th,td{border:1px solid #000;padding:5px;text-align:center}
+        th{background:#eee}
+    </style></head><body>
+    <div class="title"><img src="${typeof APP_LOGO !== 'undefined' ? APP_LOGO : ''}">MILESTONE GEARS LTD. UNIT-7</div>
+    <div class="sub">DAILY MEETING DISCUSSION & ACTION REGISTER</div>
+    <table>
+        <thead>
+            <tr><th>Sr.No.</th><th>Date & Time</th><th>Topic / Agenda</th><th>Discussion Notes</th><th>Action Points</th><th>Assigned To</th><th>Target Date</th><th>Status</th></tr>
+        </thead>
+        <tbody>${body || '<tr><td colspan="8">No records</td></tr>'}</tbody>
+    </table>
+    <script>window.onload=()=>window.print()<\/script>
+    </body></html>`);
+    w.document.close();
+}
+
+// Render call on global renderAll
+if (typeof renderAll !== 'undefined') {
+    const oldRenderAll = renderAll;
+    renderAll = function() {
+        oldRenderAll();
+        if (typeof renderMeetingTable === 'function') renderMeetingTable();
+    };
+}
 </script>
 </body>
 </html>
