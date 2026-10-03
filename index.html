@@ -4555,6 +4555,96 @@ setTimeout(() => {
     if(typeof renderCriticalTable === 'function') renderCriticalTable();
     if(typeof renderDashboard === 'function') renderDashboard();
 }, 500);
+// ==========================================================
+// FEATURE: PRINT ONLY LOW STOCK ITEMS (100% SAFE)
+// ==========================================
+
+// 1. Sirf Low Stock items ka print nikalne ka function
+function printLowStockSpares() {
+    // Inventory ko pehle theek se sync kar lein
+    if(typeof syncSpareCriticalMaster === 'function') syncSpareCriticalMaster(false);
+    
+    // Sirf wahi item filter karega jinka status 'LOW' hai
+    let lowStockItems = (typeof data !== 'undefined' && data.spares) ? data.spares.filter(r => spareStatus(r) === 'LOW') : [];
+    
+    // Agar sab theek hai aur koi item LOW nahi hai
+    if (lowStockItems.length === 0) {
+        return alert('Great! There are no low stock items. Everything is sufficiently stocked.');
+    }
+
+    // Print ke liye Table rows banayega (Existing design ko match karte hue)
+    let body = lowStockItems.map((r, i) => `<tr>
+        <td>${i + 1}</td>
+        <td>${esc(r.code)}</td>
+        <td><b>${esc(r.desc)}</b></td>
+        <td>${esc(r.spec)}</td>
+        <td>${esc(r.make)}</td>
+        <td>${esc(r.min)}</td>
+        <td>${esc(r.max)}</td>
+        <td style="font-weight:bold; color:#c0392b;">${esc(inventoryAvailableQty(r))}</td>
+        <td style="font-weight:bold; color:#c0392b;">LOW STOCK</td>
+        <td>${esc(r.loc)}</td>
+    </tr>`).join('');
+
+    // Naya print window open karega
+    let w = window.open('', '_blank', 'width=1200,height=800');
+    if (!w) return alert('Please allow pop-ups to print.');
+    
+    w.document.write(`<!doctype html><html><head><title>Low Stock Spares Report</title>
+    <style>
+        @page{size:A4 portrait;margin:8mm}
+        body{font-family:Arial;font-size:11px}
+        .title{text-align:center;font-size:16px;font-weight:bold}
+        .title img{width:16mm;height:12mm;object-fit:contain;vertical-align:middle;margin-right:5mm}
+        .sub{text-align:center;font-size:13px;font-weight:bold;margin:4px 0 10px;color:#c0392b;}
+        table{width:100%;border-collapse:collapse}
+        th,td{border:1px solid #000;padding:5px;text-align:center}
+        th{background:#eee}
+        .doc-footer{margin-top:8px;border-top:1px solid #000;padding-top:4px;text-align:center;font-size:9px;font-weight:bold}
+    </style></head><body>
+    <div class="title"><img src="${typeof APP_LOGO !== 'undefined' ? APP_LOGO : ''}">MILESTONE GEARS LTD. UNIT-7</div>
+    <div class="sub">LOW STOCK SPARE PARTS REPORT (URGENT REQUIREMENT)</div>
+    <table>
+        <thead>
+            <tr><th>Sr.No.</th><th>Item Code</th><th>Part Description</th><th>Part Specification</th><th>Make</th><th>Min Qty</th><th>Max Qty</th><th>Available Qty</th><th>Status</th><th>Location</th></tr>
+        </thead>
+        <tbody>${body}</tbody>
+    </table>
+    <div class="doc-footer">Generated on: ${new Date().toLocaleString('en-IN')}</div>
+    <script>window.onload=()=>window.print()<\/script>
+    </body></html>`);
+    w.document.close();
+}
+
+// 2. Buttons ko safely UI mein add karega (Bina HTML ko chhede)
+setTimeout(() => {
+    // a) Spare Parts Module ke toolbar mein button lagana
+    let spToolbar = document.querySelector('#spares .toolbar');
+    if (spToolbar && !document.getElementById('btnLowStockPrintToolbar')) {
+        let btn = document.createElement('button');
+        btn.id = 'btnLowStockPrintToolbar';
+        btn.className = 'danger'; // Lal rang ka button taaki alag se dikhe
+        btn.innerHTML = '🖨️ Print Low Stock';
+        btn.onclick = printLowStockSpares;
+        btn.style.marginLeft = '8px';
+        spToolbar.appendChild(btn);
+    }
+
+    // b) Dashboard ke Low Stock box par bhi chota print button lagana (Bonus convenience)
+    let dashCardTitle = document.querySelector('#dashLowStockList')?.previousElementSibling;
+    if (dashCardTitle && !document.getElementById('btnDashLowStockPrint')) {
+        let btn = document.createElement('button');
+        btn.id = 'btnDashLowStockPrint';
+        btn.className = 'mini-nav';
+        btn.innerHTML = '🖨️ Print List';
+        btn.onclick = printLowStockSpares;
+        btn.style.marginLeft = '5px';
+        btn.style.backgroundColor = '#fdecea';
+        btn.style.color = '#c0392b';
+        btn.style.borderColor = '#e6b3ad';
+        dashCardTitle.appendChild(btn);
+    }
+}, 1500);
 </script>
 </body>
 </html>
