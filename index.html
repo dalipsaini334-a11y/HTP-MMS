@@ -4340,8 +4340,8 @@ pmPlanRemoveMachine = function() {
     if(typeof renderDashboard === 'function') renderDashboard();
 };
 
-// 5. Missing Machines Ko Dheere Se Restore Karna (Bina Loop Banaye)
-setTimeout(() => {
+// 5. Missing Machines Ko Turant Restore Karna (Bina Delay Ke)
+(function() {
     if (typeof MACHINE_MASTER !== 'undefined' && Array.isArray(MACHINE_MASTER)) {
         const CORE = [
             {"department":"HEAT TREATMENT","machineNumber":"SQF - 01","machineName":"SEAL QUANCH FURNANCE","grade":"B","make":"AICHELIN UNITHERM"},
@@ -4387,13 +4387,13 @@ setTimeout(() => {
             if (typeof saveEditableMachineMaster === 'function') saveEditableMachineMaster();
         }
 
-        // Sab theek hone ke baad screen update karna
         if (typeof renderMachineMaster === 'function') renderMachineMaster();
         if (typeof populateMachineDropdown === 'function') populateMachineDropdown();
         if (typeof populateHistoryMachineDropdown === 'function') populateHistoryMachineDropdown();
         if (typeof pmPlanMachineSetupOptions === 'function') pmPlanMachineSetupOptions();
+        if (typeof renderDashboard === 'function') renderDashboard();
     }
-}, 1000);
+})();
 </script>
 <script id="mms-dedupe-fix">
 (function(){
@@ -4608,11 +4608,9 @@ renderCriticalTable = function() {
 };
 
 // Turant dashboard aur lists ko nayi setting ke hisaab se update karega
-setTimeout(() => {
-    if(typeof renderSparePartsTable === 'function') renderSparePartsTable();
-    if(typeof renderCriticalTable === 'function') renderCriticalTable();
-    if(typeof renderDashboard === 'function') renderDashboard();
-}, 500);
+if(typeof renderSparePartsTable === 'function') renderSparePartsTable();
+if(typeof renderCriticalTable === 'function') renderCriticalTable();
+if(typeof renderDashboard === 'function') renderDashboard();
 // ==========================================================
 // FEATURE: PRINT ONLY LOW STOCK ITEMS (100% SAFE)
 // ==========================================
@@ -4674,26 +4672,22 @@ function printLowStockSpares() {
     w.document.close();
 }
 
-// 2. Buttons ko safely UI mein add karega (Bina HTML ko chhede)
-// 2. Buttons ko safely UI mein add karega (Bina HTML ko chhede)
-setTimeout(() => {
-    // Puraana wala (Search box wala) button agar hai toh usko delete kar dega
+// 2. Buttons ko safely UI mein add karega (Turant)
+(function() {
     let oldBtn = document.getElementById('btnLowStockPrintToolbar');
     if (oldBtn) oldBtn.remove();
 
-    // a) Spare Parts Module ki Actions row mein button lagana ("Print Spare List" ke theek sath)
     let spActions = document.querySelector('#spares .actions.wide');
     if (spActions && !document.getElementById('btnLowStockPrintAction')) {
         let btn = document.createElement('button');
         btn.id = 'btnLowStockPrintAction';
-        btn.className = 'danger'; // Lal rang ka button taaki alag se dikhe
+        btn.className = 'danger'; 
         btn.innerHTML = '🖨️ Print Low Stock';
         btn.type = 'button';
         btn.onclick = printLowStockSpares;
         spActions.appendChild(btn);
     }
 
-    // b) Dashboard ke Low Stock box par bhi chota print button lagana (Bonus convenience)
     let dashCardTitle = document.querySelector('#dashLowStockList')?.previousElementSibling;
     if (dashCardTitle && !document.getElementById('btnDashLowStockPrint')) {
         let btn = document.createElement('button');
@@ -4707,7 +4701,7 @@ setTimeout(() => {
         btn.style.borderColor = '#e6b3ad';
         dashCardTitle.appendChild(btn);
     }
-}, 1500);
+})();
 // FEATURE: EDIT MACHINE FROM MACHINE MASTER LIST (100% SAFE)
 // 1. Table ke Header mein "Action" ka column add karna
 setTimeout(() => {
