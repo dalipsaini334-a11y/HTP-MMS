@@ -2320,34 +2320,71 @@ function renderPC(){
 
 function dgPfStatus(pf){const n=Number(pf);if(!isFinite(n))return '';return n>=0.90?'OK':'NOT OK';}
 
-function renderDG(){
-  initUtilityMonths();
-  let label=f('dg_month')||BD_MONTHS[0];
-  // Sort fix applied here
-  let a=[...data.dg].sort((x,y)=>((x.date||'')+(x.time||'')).localeCompare((y.date||'')+(y.time||'')));
-  let prev1=null, prev2=null, tableRows=[];
-  a.forEach(r=>{
-    let d1k=prev1&&r.dg1kwh!==''&&prev1.dg1kwh!==''?(num(r.dg1kwh)-num(prev1.dg1kwh)).toFixed(2):'';
-    let d1v=prev1&&r.dg1kvah!==''&&prev1.dg1kvah!==''?(num(r.dg1kvah)-num(prev1.dg1kvah)).toFixed(2):'';
-    let pf1=d1k!==''&&num(d1v)>0?(num(d1k)/num(d1v)).toFixed(3):'';
-    let d2k=prev2&&r.dg2kwh!==''&&prev2.dg2kwh!==''?(num(r.dg2kwh)-num(prev2.dg2kwh)).toFixed(2):'';
-    let d2v=prev2&&r.dg2kvah!==''&&prev2.dg2kvah!==''?(num(r.dg2kvah)-num(prev2.dg2kvah)).toFixed(2):'';
-    let pf2=d2k!==''&&num(d2v)>0?(num(d2k)/num(d2v)).toFixed(3):'';
-    prev1=r; prev2=r;
-    let d=new Date((r.date||'')+'T00:00:00'), targetD=new Date(label+' 1');
-    if(!isNaN(d)&&!isNaN(targetD)&&d.getFullYear()===targetD.getFullYear()&&d.getMonth()===targetD.getMonth()){
-      let i=data.dg.indexOf(r);
-      tableRows.push(`<tr><td>${fmtDate(r.date)}</td><td>${esc(r.time)}</td><td>${esc(r.dg1hr||'')}</td><td class="num">${r.dg1kwh??''}</td><td class="num">${r.dg1kvah??''}</td><td class="num">${d1k}</td><td class="num">${d1v}</td><td>${pf1}${pf1!==''?' — '+dgPfStatus(pf1):''}</td><td class="num">${r.dg1fuel??''}</td><td class="num">${r.dg1batt??''}</td><td class="num">${r.dg1coolant??''}</td><td>${esc(r.dg2hr||'')}</td><td class="num">${r.dg2kwh??''}</td><td class="num">${r.dg2kvah??''}</td><td class="num">${d2k}</td><td class="num">${d2v}</td><td>${pf2}${pf2!==''?' — '+dgPfStatus(pf2):''}</td><td class="num">${r.dg2fuel??''}</td><td class="num">${r.dg2batt??''}</td><td class="num">${r.dg2coolant??''}</td><td>${esc(r.status||'')}</td><td>${esc(r.remark||'')}</td><td><div class="editbar"><button class="secondary" onclick="editDG(${i})">Edit</button><button class="danger" onclick="delRow('dg',${i})">Delete</button></div></td></tr>`);
+// ==========================================================
+// FIX / UPDATE: DG DAILY READING RENDER (Monthly Running Hours Added)
+// ==========================================================
+renderDG = function() {
+    initUtilityMonths();
+    let label = f('dg_month') || BD_MONTHS[0];
+    let a = [...data.dg].sort((x, y) => ((x.date || '') + (x.time || '')).localeCompare((y.date || '') + (y.time || '')));
+    let prev1 = null, prev2 = null, tableRows = [];
+    
+    a.forEach(r => {
+        let d1k = prev1 && r.dg1kwh !== '' && prev1.dg1kwh !== '' ? (num(r.dg1kwh) - num(prev1.dg1kwh)).toFixed(2) : '';
+        let d1v = prev1 && r.dg1kvah !== '' && prev1.dg1kvah !== '' ? (num(r.dg1kvah) - num(prev1.dg1kvah)).toFixed(2) : '';
+        let pf1 = d1k !== '' && num(d1v) > 0 ? (num(d1k) / num(d1v)).toFixed(3) : '';
+        let d2k = prev2 && r.dg2kwh !== '' && prev2.dg2kwh !== '' ? (num(r.dg2kwh) - num(prev2.dg2kwh)).toFixed(2) : '';
+        let d2v = prev2 && r.dg2kvah !== '' && prev2.dg2kvah !== '' ? (num(r.dg2kvah) - num(prev2.dg2kvah)).toFixed(2) : '';
+        let pf2 = d2k !== '' && num(d2v) > 0 ? (num(d2k) / num(d2v)).toFixed(3) : '';
+        prev1 = r; prev2 = r;
+        
+        let d = new Date((r.date || '') + 'T00:00:00'), targetD = new Date(label + ' 1');
+        if (!isNaN(d) && !isNaN(targetD) && d.getFullYear() === targetD.getFullYear() && d.getMonth() === targetD.getMonth()) {
+            let i = data.dg.indexOf(r);
+            tableRows.push(`<tr><td>${fmtDate(r.date)}</td><td>${esc(r.time)}</td><td>${esc(r.dg1hr || '')}</td><td class="num">${r.dg1kwh ?? ''}</td><td class="num">${r.dg1kvah ?? ''}</td><td class="num">${d1k}</td><td class="num">${d1v}</td><td>${pf1}${pf1 !== '' ? ' — ' + dgPfStatus(pf1) : ''}</td><td class="num">${r.dg1fuel ?? ''}</td><td class="num">${r.dg1batt ?? ''}</td><td class="num">${r.dg1coolant ?? ''}</td><td>${esc(r.dg2hr || '')}</td><td class="num">${r.dg2kwh ?? ''}</td><td class="num">${r.dg2kvah ?? ''}</td><td class="num">${d2k}</td><td class="num">${d2v}</td><td>${pf2}${pf2 !== '' ? ' — ' + dgPfStatus(pf2) : ''}</td><td class="num">${r.dg2fuel ?? ''}</td><td class="num">${r.dg2batt ?? ''}</td><td class="num">${r.dg2coolant ?? ''}</td><td>${esc(r.status || '')}</td><td>${esc(r.remark || '')}</td><td><div class="editbar"><button class="secondary" onclick="editDG(${i})">Edit</button><button class="danger" onclick="delRow('dg', ${i})">Delete</button></div></td></tr>`);
+        }
+    });
+    
+    document.getElementById('dgBody').innerHTML = tableRows.join('');
+    let selVal = f('dg_month');
+    setText('dgMonthTitle', selVal ? selVal.toUpperCase() : '');
+    
+    let m1k = 0, m1v = 0, m1hr = 0, m2k = 0, m2v = 0, m2hr = 0, c1 = 0, c2 = 0;
+    let targetD = new Date(label + ' 1');
+    
+    a.forEach((r, idx) => {
+        let prev = a[idx - 1];
+        let d = new Date((r.date || '') + 'T00:00:00');
+        if (isNaN(d) ||isNaN(targetD) || d.getFullYear() !== targetD.getFullYear() || d.getMonth() !== targetD.getMonth()) return;
+        
+        let dk1 = prev && r.dg1kwh !== '' && prev.dg1kwh !== '' ? num(r.dg1kwh) - num(prev.dg1kwh) : 0,
+            dv1 = prev && r.dg1kvah !== '' && prev.dg1kvah !== '' ? num(r.dg1kvah) - num(prev.dg1kvah) : 0,
+            dhr1 = prev && r.dg1hr !== '' && prev.dg1hr !== '' ? num(r.dg1hr) - num(prev.dg1hr) : 0,
+            dk2 = prev && r.dg2kwh !== '' && prev.dg2kwh !== '' ? num(r.dg2kwh) - num(prev.dg2kwh) : 0,
+            dv2 = prev && r.dg2kvah !== '' && prev.dg2kvah !== '' ? num(r.dg2kvah) - num(prev.dg2kvah) : 0,
+            dhr2 = prev && r.dg2hr !== '' && prev.dg2hr !== '' ? num(r.dg2hr) - num(prev.dg2hr) : 0;
+            
+        if (dk1 >= 0 && dv1 >= 0) { m1k += dk1; m1v += dv1; c1++; }
+        if (dhr1 >= 0) { m1hr += dhr1; }
+        if (dk2 >= 0 && dv2 >= 0) { m2k += dk2; m2v += dv2; c2++; }
+        if (dhr2 >= 0) { m2hr += dhr2; }
+    });
+    
+    const el = document.getElementById('dgMonthlySummary');
+    if (el) {
+        el.innerHTML = `
+            <div class="ms-item"><span class="ms-label">DG-01 Total KWH</span><span class="ms-value">${m1k.toFixed(2)}</span><span class="ms-sub">Monthly consumption</span></div>
+            <div class="ms-item"><span class="ms-label">DG-01 Total KVAH</span><span class="ms-value">${m1v.toFixed(2)}</span><span class="ms-sub">Monthly consumption</span></div>
+            <div class="ms-item"><span class="ms-label">DG-01 Running Hours</span><span class="ms-value">${m1hr.toFixed(2)}</span><span class="ms-sub">Monthly total hours</span></div>
+            <div class="ms-item"><span class="ms-label">DG-01 Monthly PF</span><span class="ms-value">${m1v ? (m1k / m1v).toFixed(3) : '—'}</span><span class="ms-sub">Total KWH ÷ Total KVAH</span></div>
+            
+            <div class="ms-item"><span class="ms-label">DG-02 Total KWH</span><span class="ms-value">${m2k.toFixed(2)}</span><span class="ms-sub">Monthly consumption</span></div>
+            <div class="ms-item"><span class="ms-label">DG-02 Total KVAH</span><span class="ms-value">${m2v.toFixed(2)}</span><span class="ms-sub">Monthly consumption</span></div>
+            <div class="ms-item"><span class="ms-label">DG-02 Running Hours</span><span class="ms-value">${m2hr.toFixed(2)}</span><span class="ms-sub">Monthly total hours</span></div>
+            <div class="ms-item"><span class="ms-label">DG-02 Monthly PF</span><span class="ms-value">${m2v ? (m2k / m2v).toFixed(3) : '—'}</span><span class="ms-sub">Total KWH ÷ Total KVAH</span></div>
+        `;
     }
-  });
-  document.getElementById('dgBody').innerHTML=tableRows.join('');
-  let selVal=f('dg_month');
-  setText('dgMonthTitle', selVal ? selVal.toUpperCase() : '');
-  let m1k=0,m1v=0,m2k=0,m2v=0,c1=0,c2=0;
-  let targetD=new Date(label+' 1');
-  a.forEach((r,idx)=>{let prev=a[idx-1];let d=new Date((r.date||'')+'T00:00:00');if(isNaN(d)||isNaN(targetD)||d.getFullYear()!==targetD.getFullYear()||d.getMonth()!==targetD.getMonth())return;let dk1=prev&&r.dg1kwh!==''&&prev.dg1kwh!==''?num(r.dg1kwh)-num(prev.dg1kwh):0,dv1=prev&&r.dg1kvah!==''&&prev.dg1kvah!==''?num(r.dg1kvah)-num(prev.dg1kvah):0,dk2=prev&&r.dg2kwh!==''&&prev.dg2kwh!==''?num(r.dg2kwh)-num(prev.dg2kwh):0,dv2=prev&&r.dg2kvah!==''&&prev.dg2kvah!==''?num(r.dg2kvah)-num(prev.dg2kvah):0;if(dk1>=0&&dv1>=0){m1k+=dk1;m1v+=dv1;c1++;}if(dk2>=0&&dv2>=0){m2k+=dk2;m2v+=dv2;c2++;}});
-  const el=document.getElementById('dgMonthlySummary');if(el)el.innerHTML=`<div class="ms-item"><span class="ms-label">DG-01 Total KWH</span><span class="ms-value">${m1k.toFixed(2)}</span><span class="ms-sub">Monthly consumption</span></div><div class="ms-item"><span class="ms-label">DG-01 Total KVAH</span><span class="ms-value">${m1v.toFixed(2)}</span><span class="ms-sub">Monthly consumption</span></div><div class="ms-item"><span class="ms-label">DG-01 Monthly PF</span><span class="ms-value">${m1v? (m1k/m1v).toFixed(3):'—'}</span><span class="ms-sub">Total KWH ÷ Total KVAH</span></div><div class="ms-item"><span class="ms-label">DG-02 Total KWH</span><span class="ms-value">${m2k.toFixed(2)}</span><span class="ms-sub">Monthly consumption</span></div><div class="ms-item"><span class="ms-label">DG-02 Total KVAH</span><span class="ms-value">${m2v.toFixed(2)}</span><span class="ms-sub">Monthly consumption</span></div><div class="ms-item"><span class="ms-label">DG-02 Monthly PF</span><span class="ms-value">${m2v? (m2k/m2v).toFixed(3):'—'}</span><span class="ms-sub">Total KWH ÷ Total KVAH</span></div>`;
-}
+};
 
 function saveDG(){
  if(!mmsGuardSave('dg'))return;
@@ -2388,9 +2425,10 @@ function readingLogConfigs(){
  return {
   pf:{title:'POWER FACTOR',monthId:'pf_month',cols:['Date','Time','KWH','KVAH','KWH (Diff)','KVAH (Diff)','P.F.','Status','Sign.'],getData:(label)=>{let c=pfMonthlyCalc(label);return {rows:c.rows.map(x=>[fmtDate(x.r.date),x.r.time,x.r.kwh,x.r.kvah,x.kd,x.vd,x.pf,x.pf===''?'':(Number(x.pf)>=0.9?'OK':'NOT OK'),x.r.sign]),summary:[['MONTHLY TOTAL KWH',c.totalKwh.toFixed(1)],['MONTHLY TOTAL KVAH',c.totalKvah.toFixed(1)],['MONTHLY PF',c.totalKvah?c.pf.toFixed(3):'—']]};}},
   pc:{title:'POWER CUT DETAIL',monthId:'pc_month',cols:['Date','Time','DG1 Stock','DG2 Stock','Total Stock','Add Stock','From','To','Duration','Count 1','Count 2','Total Count','Sign.'],getData:(label)=>{let targetD=new Date(label+' 1'),rows=[...data.pc].sort((x,y)=>(x.date+x.time).localeCompare(y.date+y.time)).filter(r=>{let d=new Date((r.date||'')+'T00:00:00');return !isNaN(d)&&!isNaN(targetD)&&d.getFullYear()===targetD.getFullYear()&&d.getMonth()===targetD.getMonth()});let mins=0,c1=0,c2=0;rows.forEach(r=>{let dur=timeDuration(r.from,r.to);if(dur){let p=dur.split(':').map(Number);mins+=p[0]*60+p[1];}c1+=num(r.c1);c2+=num(r.c2);});return {rows:rows.map(r=>[fmtDate(r.date),r.time,r.dg1||'',r.dg2||'',r.stock||'',r.add||'',r.from||'',r.to||'',timeDuration(r.from,r.to),r.c1||'',r.c2||'',(r.c1+r.c2).toFixed(2),r.sign]),summary:[['TOTAL POWER CUT',String(Math.floor(mins/60)).padStart(2,'0')+':'+String(mins%60).padStart(2,'0')+' HRS'],['DG-01 TOTAL CONSUMPTION',c1.toFixed(2)],['DG-02 TOTAL CONSUMPTION',c2.toFixed(2)],['TOTAL DG CONSUMPTION',(c1+c2).toFixed(2)]]};}},
-  dg:{title:'DG DAILY READING',monthId:'dg_month',cols:['Date','Time','DG1 Running Hour','DG1 KWH','DG1 KVAH','DG1 Fuel','DG1 Battery (V)','DG1 Coolant (°C)','DG2 Running Hour','DG2 KWH','DG2 KVAH','DG2 Fuel','DG2 Battery (V)','DG2 Coolant (°C)','Status','Remark'],getData:(label)=>{let targetD=new Date(label+' 1'),a=[...data.dg].sort((x,y)=>((x.date||'')+(x.time||'')).localeCompare((y.date||'')+(y.time||''))),prev1=null,prev2=null,rows=[],m1k=0,m1v=0,m2k=0,m2v=0;a.forEach(r=>{let d1k=prev1&&r.dg1kwh!==''&&prev1.dg1kwh!==''?(num(r.dg1kwh)-num(prev1.dg1kwh)).toFixed(2):'',d1v=prev1&&r.dg1kvah!==''&&prev1.dg1kvah!==''?(num(r.dg1kvah)-num(prev1.dg1kvah)).toFixed(2):'',d2k=prev2&&r.dg2kwh!==''&&prev2.dg2kwh!==''?(num(r.dg2kwh)-num(prev2.dg2kwh)).toFixed(2):'',d2v=prev2&&r.dg2kvah!==''&&prev2.dg2kvah!==''?(num(r.dg2kvah)-num(prev2.dg2kvah)).toFixed(2):'';prev1=r;prev2=r;if(!isNaN(new Date((r.date||'')+'T00:00:00'))&&!isNaN(targetD)){let d=new Date((r.date||'')+'T00:00:00');if(d.getFullYear()===targetD.getFullYear()&&d.getMonth()===targetD.getMonth()){if(d1k!==''&&num(d1k)>=0&&num(d1v)>=0){m1k+=num(d1k);m1v+=num(d1v);}if(d2k!==''&&num(d2k)>=0&&num(d2v)>=0){m2k+=num(d2k);m2v+=num(d2v);}rows.push([fmtDate(r.date),r.time,r.dg1hr||'',r.dg1kwh||'',r.dg1kvah||'',r.dg1fuel||'',r.dg1batt??'',r.dg1coolant??'',r.dg2hr||'',r.dg2kwh||'',r.dg2kvah||'',r.dg2fuel||'',r.dg2batt??'',r.dg2coolant??'',r.status||'',r.remark||'']);}}});return {rows,summary:[['DG-01 TOTAL KWH',m1k.toFixed(2)],['DG-01 TOTAL KVAH',m1v.toFixed(2)],['DG-01 MONTHLY PF',m1v?(m1k/m1v).toFixed(3):'—'],['DG-02 TOTAL KWH',m2k.toFixed(2)],['DG-02 TOTAL KVAH',m2v.toFixed(2)],['DG-02 MONTHLY PF',m2v?(m2k/m2v).toFixed(3):'—']]};}}
- };
-}
+  dg:{title:'DG DAILY READING',monthId:'dg_month',cols:['Date','Time','DG1 Running Hour','DG1 KWH','DG1 KVAH','DG1 Fuel','DG1 Battery (V)','DG1 Coolant (°C)','DG2 Running Hour','DG2 KWH','DG2 KVAH','DG2 Fuel','DG2 Battery (V)','DG2 Coolant (°C)','Status','Remark'],getData:(label)=>{let targetD=new Date(label+' 1');let a=[...data.dg].sort((x,y)=>((x.date||'')+(x.time||'')).localeCompare((y.date||'')+(y.time||'')));let prev1=null, prev2=null, rows=[], m1k=0, m1v=0, m1hr=0, m2k=0, m2v=0, m2hr=0;a.forEach((r, idx)=>{let prev = a[idx - 1];let d1k = prev && r.dg1kwh !== '' && prev.dg1kwh !== '' ? (num(r.dg1kwh) - num(prev.dg1kwh)).toFixed(2) : '';let d1v = prev && r.dg1kvah !== '' && prev.dg1kvah !== '' ? (num(r.dg1kvah) - num(prev.dg1kvah)).toFixed(2) : '';let d2k = prev && r.dg2kwh !== '' && prev.dg2kwh !== '' ? (num(r.dg2kwh) - num(prev.dg2kwh)).toFixed(2) : '';let d2v = prev && r.dg2kvah !== '' && prev.dg2kvah !== '' ? (num(r.dg2kvah) - num(prev.dg2kvah)).toFixed(2) : '';let d = new Date((r.date || '') + 'T00:00:00');if(!isNaN(d) && !isNaN(targetD) && d.getFullYear() === targetD.getFullYear() && d.getMonth() === targetD.getMonth()){if(d1k !== '' && num(d1k) >= 0 && num(d1v) >= 0){ m1k += num(d1k); m1v += num(d1v); }if(prev && r.dg1hr !== '' && prev.dg1hr !== ''){ let dh1 = num(r.dg1hr) - num(prev.dg1hr); if(dh1 >= 0) m1hr += dh1; }if(d2k !== '' && num(d2k) >= 0 && num(d2v) >= 0){ m2k += num(d2k); m2v += num(d2v); }if(prev && r.dg2hr !== '' && prev.dg2hr !== ''){ let dh2 = num(r.dg2hr) - num(prev.dg2hr); if(dh2 >= 0) m2hr += dh2; }rows.push([fmtDate(r.date), r.time, r.dg1hr || '', r.dg1kwh || '', r.dg1kvah || '', r.dg1fuel || '', r.dg1batt ?? '', r.dg1coolant ?? '', r.dg2hr || '', r.dg2kwh || '', r.dg2kvah || '', r.dg2fuel || '', r.dg2batt ?? '', r.dg2coolant ?? '', r.status || '', r.remark || '']);}
+  });
+ return {rows,summary:[['DG-01 TOTAL KWH', m1k.toFixed(2)],['DG-01 TOTAL KVAH', m1v.toFixed(2)],['DG-01 RUNNING HOURS', m1hr.toFixed(2)],['DG-01 MONTHLY PF', m1v ? (m1k / m1v).toFixed(3) : '—'],['DG-02 TOTAL KWH', m2k.toFixed(2)],['DG-02 TOTAL KVAH', m2v.toFixed(2)],['DG-02 RUNNING HOURS', m2hr.toFixed(2)],['DG-02 MONTHLY PF', m2v ? (m2k / m2v).toFixed(3) : '—']]};}
+    }};}
 function printReadingLog(type){
  const configs=readingLogConfigs();
  const c=configs[type];if(!c)return;const label=f(c.monthId)||monthLabelFromDate(new Date()),d=c.getData(label),w=window.open('','_blank');if(!w)return alert('Please allow pop-ups to print.');
