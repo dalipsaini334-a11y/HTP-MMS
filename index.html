@@ -4617,17 +4617,22 @@ function printLowStockSpares() {
 }
 
 // 2. Buttons ko safely UI mein add karega (Bina HTML ko chhede)
+// 2. Buttons ko safely UI mein add karega (Bina HTML ko chhede)
 setTimeout(() => {
-    // a) Spare Parts Module ke toolbar mein button lagana
-    let spToolbar = document.querySelector('#spares .toolbar');
-    if (spToolbar && !document.getElementById('btnLowStockPrintToolbar')) {
+    // Puraana wala (Search box wala) button agar hai toh usko delete kar dega
+    let oldBtn = document.getElementById('btnLowStockPrintToolbar');
+    if (oldBtn) oldBtn.remove();
+
+    // a) Spare Parts Module ki Actions row mein button lagana ("Print Spare List" ke theek sath)
+    let spActions = document.querySelector('#spares .actions.wide');
+    if (spActions && !document.getElementById('btnLowStockPrintAction')) {
         let btn = document.createElement('button');
-        btn.id = 'btnLowStockPrintToolbar';
+        btn.id = 'btnLowStockPrintAction';
         btn.className = 'danger'; // Lal rang ka button taaki alag se dikhe
         btn.innerHTML = '🖨️ Print Low Stock';
+        btn.type = 'button';
         btn.onclick = printLowStockSpares;
-        btn.style.marginLeft = '8px';
-        spToolbar.appendChild(btn);
+        spActions.appendChild(btn);
     }
 
     // b) Dashboard ke Low Stock box par bhi chota print button lagana (Bonus convenience)
@@ -4645,10 +4650,7 @@ setTimeout(() => {
         dashCardTitle.appendChild(btn);
     }
 }, 1500);
-// =================================================================
 // FEATURE: EDIT MACHINE FROM MACHINE MASTER LIST (100% SAFE)
-// =================================================================
-
 // 1. Table ke Header mein "Action" ka column add karna
 setTimeout(() => {
     let mmTableHead = document.querySelector('#mm .tbl thead tr');
