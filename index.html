@@ -5067,6 +5067,341 @@ if (typeof renderAll !== 'undefined') {
         if (typeof renderMeetingTable === 'function') renderMeetingTable();
     };
 }
+// =================================================================
+// MODULE: SPARE PART PURCHASE & RECEIPT REGISTER
+// =================================================================
+
+// 1. Data Key Setup
+if (typeof KEY !== 'undefined') {
+    KEY.sparePurchase = 'htp7_spare_purchase_v1';
+}
+if (typeof data !== 'undefined' && !data.sparePurchase) {
+    data.sparePurchase = load ? load('sparePurchase') : [];
+}
+
+// 2. Sidebar Tab aur Panel UI Inject Karna
+setTimeout(() => {
+    let sidebarScroll = document.querySelector('.app-sidebar .side-scroll');
+    if (sidebarScroll && !document.getElementById('sidebarPurchaseTab')) {
+        // "SPARE PARTS & STORES" nav group ko dhoondh kar usme add karenge
+        let groups = sidebarScroll.querySelectorAll('.nav-group');
+        let targetGroup = null;
+        groups.forEach(g => {
+            if (g.textContent.includes('SPARE PARTS') || g.textContent.includes('Inventory')) {
+                targetGroup = g;
+            }
+        });
+
+        if (targetGroup) {
+            let btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'tab';
+            btn.id = 'sidebarPurchaseTab';
+            btn.setAttribute('data-target', 'sparePurchase');
+            btn.setAttribute('onclick', "showTab('sparePurchase',this)");
+            btn.innerHTML = '<span>🛒</span> Spare Part Purchase';
+            targetGroup.appendChild(btn);
+        }
+    }
+
+    // Main Content Area mein Panel HTML Inject Karna
+    let mainWrap = document.querySelector('main.wrap');
+    if (mainWrap && !document.getElementById('sparePurchase')) {
+        let panel = document.createElement('section');
+        panel.id = 'sparePurchase';
+        panel.className = 'panel official-module';
+        panel.innerHTML = `
+        <div class="card">
+            <div class="head">MILESTONE GEARS LTD. UNIT-7</div>
+            <div class="head2">SPARE PART PURCHASE PLANNING & RECEIPT REGISTER</div>
+            <div class="utility-help">Plan future spare part purchases, track active orders, and maintain complete receiving history (Vendor, PO, Cost, and Stock Auto-Update).</div>
+            <div class="form">
+                <input type="hidden" id="pur_id">
+                <div class="field"><label>Sr. No.</label><input id="pur_sno" type="number"></div>
+                <div class="field"><label>Part Description / Name <b>*</b></label><input id="pur_desc" placeholder="e.g. Bearing 6205 / Contactor"></div>
+                <div class="field"><label>Specification / Part No.</label><input id="pur_spec" placeholder="e.g. 6205-2Z/C3"></div>
+                <div class="field"><label>Quantity Needed <b>*</b></label><input id="pur_qty" type="number" min="0" step="any" value="1"></div>
+                <div class="field"><label>Urgency Level</label><select id="pur_urgency"><option>Normal</option><option>Urgent</option><option>Critical Breakdown</option></select></div>
+                <div class="field"><label>Planned / Request Date</label><input id="pur_req_date" type="date"></div>
+                <div class="field"><label>Status</label><select id="pur_status" onchange="purchaseStatusChanged()"><option>Planned</option><option>Ordered</option><option>Received</option><option>Cancelled</option></select></div>
+                <div class="field"><label>PO Number</label><input id="pur_po" placeholder="PO-2026-XXXX"></div>
+                <div class="field"><label>Vendor / Supplier Name</label><input id="pur_vendor" placeholder="Supplier firm name"></div>
+                <div class="field"><label>Received Date</label><input id="pur_rec_date" type="date"></div>
+                <div class="field"><label>Quantity Received</label><input id="pur_rec_qty" type="number" min="0" step="any" placeholder="0"></div>
+                <div class="field"><label>Total Cost (₹)</label><input id="pur_cost" type="number" min="0" step="0.01" placeholder="0.00"></div>
+                <div class="field wide"><label>Remark / Indent Note</label><input id="pur_remark" placeholder="Machine reference or additional notes"></div>
+                <div class="actions wide">
+                    <button class="primary" onclick="savePurchaseRecord()">Save Purchase Record</button>
+                    <button class="secondary" onclick="clearPurchaseForm()">Clear</button>
+                    <button class="secondary" onclick="printPurchaseRegister()">🖨️ Print Purchase Register</button>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="summary">
+                <div class="stat">Total Records: <b id="pur_sum_total">0</b></div>
+                <div class="stat">Planned / Ordered: <b id="pur_sum_pending">0</b></div>
+                <div class="stat">Received Orders: <b id="pur_sum_received">0</b></div>
+            </div>
+            <div class="toolbar">
+                <input id="pur_search" placeholder="Search description, PO, vendor, status..." oninput="renderPurchaseTable()">
+                <select id="pur_filter_status" onchange="renderPurchaseTable()">
+                    <option value="">All Status</option>
+                    <option value="Planned">Planned</option>
+                    <option value="Ordered">Ordered</option>
+                    <option value="Received">Received</option>
+                    <option value="Cancelled">Cancelled</option>
+                </select>
+            </div>
+            <div class="tablewrap">
+                <table class="tbl">
+                    <thead>
+                        <tr>
+                            <th>Sr.No.</th><th>Part Description</th><th>Specification</th><th>Qty Needed</th><th>Urgency</th><th>Req. Date</th><th>Status</th><th>PO No. & Vendor</th><th>Received Date & Qty</th><th>Cost (₹)</th><th>Remark</th><th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="purBody"></tbody>
+                </table>
+            </div>
+        </div>`;
+        mainWrap.appendChild(panel);
+    }
+    if (typeof renderPurchaseTable === 'function') renderPurchaseTable();
+}, 1200);
+
+// 3. Purchase Module Functions
+let editPurchaseIndex = null;
+
+function nextPurchaseSno() {
+    let list = Array.isArray(data.sparePurchase) ? data.sparePurchase : [];
+    return list.reduce((m, r) => Math.max(m, num(r.sno)), 0) + 1;
+}
+
+function clearPurchaseForm() {
+    editPurchaseIndex = null;
+    ['pur_id', 'pur_desc', 'pur_spec', 'pur_po', 'pur_vendor', 'pur_rec_qty', 'pur_cost', 'pur_remark'].forEach(id => setv(id, ''));
+    setv('pur_sno', nextPurchaseSno());
+    setv('pur_qty', '1');
+    setv('pur_urgency', 'Normal');
+    setv('pur_status', 'Planned');
+    setv('pur_req_date', new Date().toISOString().slice(0, 10));
+    setv('pur_rec_date', '');
+    let btn = document.querySelector('#sparePurchase .primary');
+    if (btn) btn.textContent = 'Save Purchase Record';
+}
+
+function purchaseStatusChanged() {
+    let st = f('pur_status');
+    let recDate = document.getElementById('pur_rec_date');
+    let recQty = document.getElementById('pur_rec_qty');
+    if (st === 'Received') {
+        if (recDate && !recDate.value) recDate.value = new Date().toISOString().slice(0, 10);
+        if (recQty && !recQty.value) recQty.value = f('pur_qty') || '1';
+    }
+}
+
+function savePurchaseRecord() {
+    if (typeof mmsGuardSave === 'function' && !mmsGuardSave('sparePurchase')) return;
+    if (!Array.isArray(data.sparePurchase)) data.sparePurchase = [];
+
+    let desc = (f('pur_desc') || '').trim();
+    let qty = num(f('pur_qty'));
+    if (!desc) return alert('Part Description is required.');
+    if (qty <= 0) return alert('Quantity Needed must be greater than 0.');
+
+    let oldRecord = editPurchaseIndex !== null ? data.sparePurchase[editPurchaseIndex] : null;
+    let newStatus = f('pur_status') || 'Planned';
+    let recQty = num(f('pur_rec_qty'));
+
+    let r = {
+        id: oldRecord?.id || 'pur-' + Date.now(),
+        sno: num(f('pur_sno')) || nextPurchaseSno(),
+        desc,
+        spec: (f('pur_spec') || '').trim(),
+        qty,
+        urgency: f('pur_urgency') || 'Normal',
+        reqDate: f('pur_req_date'),
+        status: newStatus,
+        po: (f('pur_po') || '').trim(),
+        vendor: (f('pur_vendor') || '').trim(),
+        recDate: f('pur_rec_date'),
+        recQty: newStatus === 'Received' ? (recQty > 0 ? recQty : qty) : 0,
+        cost: num(f('pur_cost')),
+        remark: (f('pur_remark') || '').trim(),
+        updatedAt: new Date().toISOString()
+    };
+
+    // Smart Inventory Integration: Agar status pehle received nahi tha aur ab 'Received' hua hai,
+    // toh optional prompt de sakte hain ya automatic spare inventory mein stock add kar sakte hain.
+    let addedToInventory = false;
+    if (newStatus === 'Received' && (!oldRecord || oldRecord.status !== 'Received')) {
+        if (confirm(`Status is 'Received'. Do you want to automatically add ${r.recQty} qty of "${r.desc}" to the Spare Parts Inventory master?`)) {
+            // Check if spare exists in main inventory, else create it
+            let existingSpare = (data.spares || []).find(s => normalizeSpareName(s.desc) === normalizeSpareName(r.desc) && (!r.spec || normalizeSpareName(s.spec) === normalizeSpareName(r.spec)));
+            if (existingSpare) {
+                let cur = inventoryAvailableQty(existingSpare);
+                syncSpareAvailable(existingSpare, cur + r.recQty);
+                addedToInventory = true;
+            } else {
+                let newSp = {
+                    id: 'sp-pur-' + Date.now(),
+                    sno: (data.spares || []).length + 1,
+                    code: r.po || '',
+                    desc: r.desc,
+                    spec: r.spec,
+                    make: r.vendor || '',
+                    min: 1,
+                    max: Math.max(5, r.recQty * 2),
+                    qty: String(r.recQty),
+                    availableQty: r.recQty,
+                    loc: 'Main Store',
+                    updatedAt: new Date().toISOString()
+                };
+                if (!Array.isArray(data.spares)) data.spares = [];
+                data.spares.push(newSp);
+                addedToInventory = true;
+            }
+            if (typeof persist === 'function') {
+                persist('spares');
+                if (typeof syncSpareCriticalMaster === 'function') syncSpareCriticalMaster(true);
+            }
+        }
+    }
+
+    if (editPurchaseIndex !== null) {
+        data.sparePurchase[editPurchaseIndex] = r;
+    } else {
+        data.sparePurchase.push(r);
+    }
+
+    if (typeof persist === 'function') persist('sparePurchase');
+    clearPurchaseForm();
+    renderPurchaseTable();
+    if (typeof renderSparePartsTable === 'function') renderSparePartsTable();
+    
+    alert('Purchase record saved successfully.' + (addedToInventory ? '\n\nSpare stock successfully updated in Inventory!' : ''));
+}
+
+function renderPurchaseTable() {
+    let body = document.getElementById('purBody');
+    if (!body) return;
+    if (!Array.isArray(data.sparePurchase)) data.sparePurchase = [];
+
+    let q = (f('pur_search') || '').toLowerCase();
+    let st = f('pur_filter_status') || '';
+
+    let a = data.sparePurchase.filter(r => (!st || r.status === st) && (!q || Object.values(r).join(' ').toLowerCase().includes(q)));
+    a.sort((x, y) => (y.reqDate || '').localeCompare(x.reqDate || ''));
+
+    body.innerHTML = a.map((r, i) => {
+        let realIdx = data.sparePurchase.indexOf(r);
+        let cls = r.status === 'Received' ? 'req-closed' : (r.status === 'Cancelled' ? '' : 'req-open');
+        let urgencyColor = r.urgency === 'Urgent' || r.urgency === 'Critical Breakdown' ? 'color:#c0392b; font-weight:bold;' : '';
+        return `<tr>
+            <td>${i + 1}</td>
+            <td><b>${esc(r.desc)}</b></td>
+            <td>${esc(r.spec)}</td>
+            <td><b>${esc(r.qty)}</b></td>
+            <td style="${urgencyColor}">${esc(r.urgency)}</td>
+            <td>${esc(fmtDate(r.reqDate))}</td>
+            <td class="${cls}">${esc(r.status)}</td>
+            <td>${esc(r.po || '—')}<br><small style="color:#666">${esc(r.vendor || '')}</small></td>
+            <td>${r.status === 'Received' ? esc(fmtDate(r.recDate)) + ' (Qty: ' + esc(r.recQty) + ')' : '—'}</td>
+            <td>${r.cost > 0 ? '₹' + Number(r.cost).toFixed(2) : '—'}</td>
+            <td style="text-align:left; max-width:180px; white-space:normal;">${esc(r.remark)}</td>
+            <td class="editbar">
+                <button class="secondary" onclick="editPurchaseRecord(${realIdx})">Edit</button>
+                <button class="danger" onclick="deletePurchaseRecord(${realIdx})">Delete</button>
+            </td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="12">No purchase records found.</td></tr>';
+
+    setText('pur_sum_total', data.sparePurchase.length);
+    setText('pur_sum_pending', data.sparePurchase.filter(x => x.status === 'Planned' || x.status === 'Ordered').length);
+    setText('pur_sum_received', data.sparePurchase.filter(x => x.status === 'Received').length);
+}
+
+function editPurchaseRecord(i) {
+    if (typeof mmsGuardEdit === 'function' && !mmsGuardEdit('sparePurchase')) return;
+    let r = data.sparePurchase[i];
+    if (!r) return;
+    editPurchaseIndex = i;
+    setv('pur_id', r.id);
+    setv('pur_sno', r.sno);
+    setv('pur_desc', r.desc);
+    setv('pur_spec', r.spec);
+    setv('pur_qty', r.qty);
+    setv('pur_urgency', r.urgency);
+    setv('pur_req_date', r.reqDate);
+    setv('pur_status', r.status);
+    setv('pur_po', r.po);
+    setv('pur_vendor', r.vendor);
+    setv('pur_rec_date', r.recDate);
+    setv('pur_rec_qty', r.recQty);
+    setv('pur_cost', r.cost);
+    setv('pur_remark', r.remark);
+    let btn = document.querySelector('#sparePurchase .primary');
+    if (btn) btn.textContent = 'Update Purchase Record';
+    document.getElementById('sparePurchase').scrollIntoView({ behavior: 'smooth' });
+}
+
+function deletePurchaseRecord(i) {
+    if (typeof mmsGuardDelete === 'function' && !mmsGuardDelete('sparePurchase')) return;
+    if (!confirm('Delete this purchase record?')) return;
+    data.sparePurchase.splice(i, 1);
+    if (typeof persist === 'function') persist('sparePurchase');
+    renderPurchaseTable();
+}
+
+function printPurchaseRegister() {
+    let a = data.sparePurchase || [];
+    let body = a.map((r, i) => `<tr>
+        <td>${i + 1}</td>
+        <td><b>${esc(r.desc)}</b></td>
+        <td>${esc(r.spec)}</td>
+        <td>${esc(r.qty)}</td>
+        <td>${esc(r.urgency)}</td>
+        <td>${esc(fmtDate(r.reqDate))}</td>
+        <td>${esc(r.status)}</td>
+        <td>${esc(r.po)} / ${esc(r.vendor)}</td>
+        <td>${r.status === 'Received' ? esc(fmtDate(r.recDate)) + ' (Qty: ' + esc(r.recQty) + ')' : '—'}</td>
+        <td>${r.cost > 0 ? '₹' + Number(r.cost).toFixed(2) : '—'}</td>
+        <td style="text-align:left">${esc(r.remark)}</td>
+    </tr>`).join('');
+
+    let w = window.open('', '_blank', 'width=1200,height=800');
+    if (!w) return alert('Please allow pop-ups to print.');
+    w.document.write(`<!doctype html><html><head><title>Spare Part Purchase & Receipt Register</title><style>
+        @page{size:A4 landscape;margin:8mm}
+        body{font-family:Arial;font-size:10px}
+        .title{text-align:center;font-size:16px;font-weight:bold}
+        .title img{width:16mm;height:12mm;object-fit:contain;vertical-align:middle;margin-right:5mm}
+        .sub{text-align:center;font-size:13px;font-weight:bold;margin:4px 0 10px}
+        table{width:100%;border-collapse:collapse}
+        th,td{border:1px solid #000;padding:5px;text-align:center}
+        th{background:#eee}
+    </style></head><body>
+    <div class="title"><img src="${typeof APP_LOGO !== 'undefined' ? APP_LOGO : ''}">MILESTONE GEARS LTD. UNIT-7</div>
+    <div class="sub">SPARE PART PURCHASE PLANNING & RECEIPT REGISTER</div>
+    <table>
+        <thead>
+            <tr><th>Sr.No.</th><th>Part Description</th><th>Specification</th><th>Qty Needed</th><th>Urgency</th><th>Req. Date</th><th>Status</th><th>PO & Vendor</th><th>Received Date & Qty</th><th>Cost (₹)</th><th>Remark</th></tr>
+        </thead>
+        <tbody>${body || '<tr><td colspan="11">No records</td></tr>'}</tbody>
+    </table>
+    <script>window.onload=()=>window.print()<\/script>
+    </body></html>`);
+    w.document.close();
+}
+
+// Global Render Integration
+if (typeof renderAll !== 'undefined') {
+    const oldRenderAllPur = renderAll;
+    renderAll = function() {
+        oldRenderAllPur();
+        if (typeof renderPurchaseTable === 'function') renderPurchaseTable();
+    };
+}
 </script>
 </body>
 </html>
