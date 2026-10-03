@@ -542,6 +542,16 @@ main.wrap{margin-left:252px;padding:94px 22px 25px;max-width:none}.sidebar-overl
 
   <div class="dashboard-footer"><b>CONTROLLED MAINTENANCE WORKSPACE</b><span>Use the left navigation to access module-wise records, reports and master data.</span></div>
 </div>
+<!-- NAYA BOX: ADMIN ACTIVITY LOG (Sirf Admin ko dikhega) -->
+  <div class="dash-grid modern-grid" id="adminActivityGrid" style="display:none; margin-top:14px;">
+    <div class="dash-card" style="grid-column: 1 / -1; border-color: #0f766e;">
+      <div class="card-title-row">
+        <div><h3 style="color:#0f766e;">Live User Activity Log (Admin Only)</h3><small>Track who updated which module</small></div>
+        <button class="mini-nav" onclick="if(window.MMS) MMS.openTools()">Open System Tools →</button>
+      </div>
+      <div class="dash-list" id="dashAdminActivityList" style="max-height: 250px; overflow-y: auto;"></div>
+    </div>
+  </div>
 </section>
 
 <section id="pf" class="panel">
@@ -2102,6 +2112,57 @@ let calDueSoon=calibrationDueSoon(30);setText('dashCalDue',calDueSoon.length);le
         }
     }
 }
+// ==========================================
+    // ADMIN ACTIVITY LOG UPDATE (100% SAFE)
+    // ==========================================
+    let adminGrid = document.getElementById('adminActivityGrid');
+    let adminList = document.getElementById('dashAdminActivityList');
+    // Current user ka role check karna
+    let currentSess = typeof mmsSession === 'function' ? mmsSession() : null;
+
+    if (adminGrid && adminList) {
+        // Sirf 'Admin' role walo ko hi yeh box show hoga
+        if (currentSess && currentSess.role === 'Admin') {
+            adminGrid.style.display = 'grid';
+            
+            let audits = [];
+            // Direct background audit list se data lena (bina kisi module ko disturb kiye)
+            try { audits = JSON.parse(localStorage.getItem('htp_mms_audit_v1') || '[]'); } catch(e){}
+            
+            // Sirf 'SAVE' ya delete wali activity ke aakhiri 15 records filter karna
+            let recentAudits = audits.filter(a => a.action === 'SAVE' || a.action === 'RESTORE' || a.action.includes('DELETE')).slice(0, 15);
+            
+            // Module ke short codes ko full name mein dikhane ke liye
+            const modNames = {
+                'pf':'Power Factor', 'pc':'Power Cut', 'dg':'DG Reading', 'mr':'Maintenance Request', 
+                'mh':'Machine History', 'pm':'PM Check Sheet', 'bd':'Breakdown', 'spares':'Spare Parts', 
+                'critical':'Critical Spares', 'tc':'Thermocouple', 'cal':'Calibration', 'utility':'Utility', 
+                'airCompressor':'Air Compressor', 'pmMaster':'PM Master Schedule', 'pmMonthly':'Monthly PM'
+            };
+
+            if (recentAudits.length > 0) {
+                adminList.innerHTML = recentAudits.map(a => {
+                    let d = new Date(a.time);
+                    let timeStr = d.toLocaleDateString('en-IN', {day:'2-digit', month:'short'}) + ' ' + d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
+                    let moduleName = modNames[a.module] || a.module.toUpperCase();
+                    
+                    return `
+                    <div class="dash-row" style="background:#f4f9f9; border-left:3px solid #0f766e;">
+                        <span><b>👤 ID: ${esc(a.user.toUpperCase())}</b> <small style="color:#666">(${esc(a.role)})</small><br><small>Updated Module: <b>${esc(moduleName)}</b></small></span>
+                        <span style="text-align:right; font-size:10px; color:#666;">${timeStr}<br><b style="color:#17324d">${esc(a.action === 'SAVE' ? 'DATA SAVED/EDITED' : a.action)}</b></span>
+                    </div>
+                    `;
+                }).join('');
+            } else {
+                adminList.innerHTML = '<div class="dash-empty">No recent entry activity found.</div>';
+            }
+        } else {
+            // Agar Admin nahi hai to box hide rahega
+            adminGrid.style.display = 'none';
+        }
+    }
+}
+// <-- Yahan par renderDashboard() function ka closing bracket ( } ) hoga.
 function duration(a,b){if(!a||!b)return '';let [ay,am,ad]=a?[]:[];return timeDuration(a,b)}
 function timeDuration(start,end){
  if(!start||!end)return '';
