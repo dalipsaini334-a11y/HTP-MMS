@@ -2078,25 +2078,22 @@ function dashboardPMStatus(){
 }
 function renderDashboard(){let now=new Date(),ym=now.getFullYear(),mon=now.getMonth()+1;let monthBD=data.bd.filter(r=>{let d=new Date((r.date||'')+'T00:00:00');return !isNaN(d)&&d.getFullYear()===ym&&d.getMonth()+1===mon});let open=data.mr.filter(r=>{let st=String(r.status||'').toLowerCase();return st!=='closed'&&st!=='complete'});setText('dashMachines',MACHINE_MASTER.length);setText('dashOpen',open.length);setText('dashBreakdowns',monthBD.length);let pm=dashboardPMStatus();setText('dashPM',pm.planned+pm.pending+pm.overdue);setText('dashPMTotal',pm.total);setText('dashPMPlanned',pm.planned);setText('dashPMCompleted',pm.completed);setText('dashPMPending',pm.pending);setText('dashPMOverdue',pm.overdue);let dml=document.getElementById('dashPMMonthLabel');if(dml)dml.textContent=pm.currentLabel+' • PM Plan Control';let dms=document.getElementById('dashPMSub');if(dms)dms.textContent=pm.currentLabel;let de={};MACHINE_MASTER.forEach(m=>de[m.department]=(de[m.department]||0)+1);let max=Math.max(1,...Object.values(de));let dept=document.getElementById('dashDepartments');if(dept)dept.innerHTML=Object.entries(de).map(([k,v])=>`<div class="dept-line"><span>${esc(k)}</span><div class="bar"><i style="width:${v/max*100}%"></i></div><b>${v}</b></div>`).join('');let rb=[...data.bd].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||String(b.to||'').localeCompare(String(a.to||''))).slice(0,5);let rbd=document.getElementById('dashRecentBD');if(rbd)rbd.innerHTML=rb.length?rb.map(r=>`<div class="dash-row"><span><b>${esc(r.machine||'')}</b><br>${esc(r.reason||'')}</span><span>${esc(fmtDate(r.date))}<br>${num(r.hours).toFixed(2)} h</span></div>`).join(''):'<div class="dash-empty">No breakdown data available</div>';let rm=open.slice().sort((a,b)=>(b.pdate||'').localeCompare(a.pdate||'')).slice(0,5);let rmr=document.getElementById('dashRecentMR');if(rmr)rmr.innerHTML=rm.length?rm.map(r=>`<div class="dash-row"><span><b>SR ${esc(r.sr||'')}</b><br>${esc(r.machine||'')}</span><span>${esc(r.status||'Open')}</span></div>`).join(''):'<div class="dash-empty">No open requests</div>';let dd=document.getElementById('dashDate');if(dd)dd.textContent=now.toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'short',year:'numeric'});
 let calDueSoon=calibrationDueSoon(30);setText('dashCalDue',calDueSoon.length);let cdl=document.getElementById('dashCalDueList');if(cdl)cdl.innerHTML=calDueSoon.length?calDueSoon.slice(0,8).map(x=>`<div class="dash-row"><span><b>${esc(x.r.name||'')}</b><br>${esc(x.r.idno||'')} • ${esc(x.r.location||'')}</span><span>${esc(fmtDate(x.d.toISOString().slice(0,10)))}<br>${x.diff===0?'Due today':'in '+x.diff+' day'+(x.diff===1?'':'s')}</span></div>`).join(''):'<div class="dash-empty">No calibration due in next 30 days</div>';
-// Dashboard Low Stock Update (Count & List) - PERFECT MATCH WITH LIST
+// ==========================================================
+    // ANTI-FLICKER DASHBOARD UPDATE: LOW STOCK & ADMIN LOG
+    // ==========================================================
+    // 1. LOW STOCK UPDATE
     let lowStockItems = [];
     if (typeof data !== 'undefined' && Array.isArray(data.spares)) {
-        // DIRECT INVENTORY LIST WALA FUNCTION USE KIYA: jo list me 'LOW' likhta hai
         lowStockItems = data.spares.filter(r => spareStatus(r) === 'LOW');
     }
-    
-    // 1. Upar wale KPI card mein number update karega
-    let dashLowStockEl = document.getElementById('dashLowStock');
-    if (dashLowStockEl) {
-        dashLowStockEl.textContent = lowStockItems.length;
-    }
 
-    // 2. Niche wale List Box mein Part ka Name aur Quantity dikhayega
+    let dashLowStockEl = document.getElementById('dashLowStock');
+    if (dashLowStockEl) dashLowStockEl.textContent = lowStockItems.length;
+
     let dashLowStockListEl = document.getElementById('dashLowStockList');
     if (dashLowStockListEl) {
         if (lowStockItems.length > 0) {
-            // Sabse kam stock wale 8 items ki list banayega
-            let listHtml = lowStockItems
+            dashLowStockListEl.innerHTML = lowStockItems
                 .sort((a, b) => inventoryAvailableQty(a) - inventoryAvailableQty(b))
                 .slice(0, 8) 
                 .map(r => `
@@ -2105,32 +2102,24 @@ let calDueSoon=calibrationDueSoon(30);setText('dashCalDue',calDueSoon.length);le
                     <span style="text-align:right;">Avail: <b style="color:#c0392b; font-size:14px;">${inventoryAvailableQty(r)}</b><br><small>Min: ${num(r.min)}</small></span>
                 </div>
                 `).join('');
-            dashLowStockListEl.innerHTML = listHtml;
         } else {
-            // Agar koi item low stock nahi hai to green message dikhayega
             dashLowStockListEl.innerHTML = '<div class="dash-empty" style="color:#198754;">✓ All spares are sufficiently stocked</div>';
         }
     }
-    // ADMIN ACTIVITY LOG UPDATE (100% SAFE)
-    // ==========================================
+
+    // 2. ADMIN ACTIVITY LOG UPDATE
     let adminGrid = document.getElementById('adminActivityGrid');
     let adminList = document.getElementById('dashAdminActivityList');
-    // Current user ka role check karna
     let currentSess = typeof mmsSession === 'function' ? mmsSession() : null;
 
     if (adminGrid && adminList) {
-        // Sirf 'Admin' role walo ko hi yeh box show hoga
         if (currentSess && currentSess.role === 'Admin') {
             adminGrid.style.display = 'grid';
-            
             let audits = [];
-            // Direct background audit list se data lena (bina kisi module ko disturb kiye)
             try { audits = JSON.parse(localStorage.getItem('htp_mms_audit_v1') || '[]'); } catch(e){}
             
-            // Sirf 'SAVE' ya delete wali activity ke aakhiri 15 records filter karna
             let recentAudits = audits.filter(a => a.action === 'SAVE' || a.action === 'RESTORE' || a.action.includes('DELETE')).slice(0, 15);
             
-            // Module ke short codes ko full name mein dikhane ke liye
             const modNames = {
                 'pf':'Power Factor', 'pc':'Power Cut', 'dg':'DG Reading', 'mr':'Maintenance Request', 
                 'mh':'Machine History', 'pm':'PM Check Sheet', 'bd':'Breakdown', 'spares':'Spare Parts', 
@@ -2142,7 +2131,7 @@ let calDueSoon=calibrationDueSoon(30);setText('dashCalDue',calDueSoon.length);le
                 adminList.innerHTML = recentAudits.map(a => {
                     let d = new Date(a.time);
                     let timeStr = d.toLocaleDateString('en-IN', {day:'2-digit', month:'short'}) + ' ' + d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
-                    let moduleName = modNames[a.module] || a.module.toUpperCase();
+                    let moduleName = modNames[a.module] || (a.module ? a.module.toUpperCase() : 'SYSTEM');
                     
                     return `
                     <div class="dash-row" style="background:#f4f9f9; border-left:3px solid #0f766e;">
@@ -2155,12 +2144,10 @@ let calDueSoon=calibrationDueSoon(30);setText('dashCalDue',calDueSoon.length);le
                 adminList.innerHTML = '<div class="dash-empty">No recent entry activity found.</div>';
             }
         } else {
-            // Agar Admin nahi hai to box hide rahega
             adminGrid.style.display = 'none';
         }
     }
-}
-// <-- Yahan par renderDashboard() function ka closing bracket ( } ) hoga.
+} // <-- Yahan par renderDashboard() function close hota hai.
 function duration(a,b){if(!a||!b)return '';let [ay,am,ad]=a?[]:[];return timeDuration(a,b)}
 function timeDuration(start,end){
  if(!start||!end)return '';
@@ -4500,20 +4487,39 @@ setTimeout(() => {
 </script>
 <script id="mms-dashboard-refresh-fix">
 (function(){
-  // FIX: Dashboard ke PM Due / KPI numbers sirf pehli baar load hote waqt calculate hote the.
-  // Agar user kisi doosre tab par jaye bina Dashboard par hi baitha rahe, to background me
-  // data badalne (PM Master ki frequency change, sync se naya data aana, etc.) ke baad bhi
-  // Dashboard ka number purana hi dikhta rehta tha, jab tak koi tab switch na ho.
-  // Fix: Dashboard KPIs ko har thodi der me khud-ba-khud recalculate karte raho.
+  // FIX: Stable Dashboard Refresh without UI Flicker
+  let lastDashRenderStr = '';
+  
   function mmsSafeRenderDashboard(){
     try {
-      if (typeof renderDashboard === 'function') renderDashboard();
+      // Sirf tabhi re-render karega jab Dashboard actual mein open ho
+      let dashPanel = document.getElementById('dashboard');
+      if (dashPanel && dashPanel.classList.contains('active')) {
+          
+          // Check for data changes before rendering to prevent blinking
+          let currentDataStr = JSON.stringify({
+              spares: data.spares ? data.spares.length : 0,
+              pm: pmPlanData ? JSON.stringify(pmPlanData).length : 0,
+              mr: data.mr ? data.mr.length : 0,
+              bd: data.bd ? data.bd.length : 0
+          });
+          
+          if (currentDataStr !== lastDashRenderStr) {
+              if (typeof renderDashboard === 'function') renderDashboard();
+              lastDashRenderStr = currentDataStr;
+          }
+      }
     } catch (e) { console.warn('Dashboard auto-refresh skipped', e); }
   }
-  // Page load ke 3 second baad ek baar zaroor (taaki sync/machine-master cleanup settle ho jaye)
-  window.addEventListener('load', function(){ setTimeout(mmsSafeRenderDashboard, 3000); });
-  // Uske baad har 20 second me automatically dobara calculate hota rahega.
-  setInterval(mmsSafeRenderDashboard, 20000);
+  
+  window.addEventListener('load', function(){ 
+      setTimeout(() => { 
+          if (typeof renderDashboard === 'function') renderDashboard();
+          mmsSafeRenderDashboard(); 
+      }, 1500); 
+  });
+  
+  setInterval(mmsSafeRenderDashboard, 5000); // Har 5 sec check karega bina load daale
 })();
 // ==========================================================
 // FIX: SAFE LOW STOCK CALCULATION & RED HIGHLIGHT ROW
