@@ -4463,6 +4463,98 @@ setTimeout(() => {
   // Uske baad har 20 second me automatically dobara calculate hota rahega.
   setInterval(mmsSafeRenderDashboard, 20000);
 })();
+// ==========================================================
+// FIX: SAFE LOW STOCK CALCULATION & RED HIGHLIGHT ROW
+// ==========================================================
+
+// 1. Calculation ko theek kiya (Sirf Min se kam hone par LOW dikhayega, barabar hone par nahi)
+function spareStatus(r) {
+    const a = inventoryAvailableQty(r), min = num(r.min), max = num(r.max);
+    if(a < min) return 'LOW';  // Yahan `<=` ko `<` kar diya hai
+    if(max > 0 && a >= max) return 'FULL';
+    return 'OK';
+}
+
+function criticalStatus(r) {
+    return num(r.avail) < num(r.min) ? 'Low' : 'OK'; // Yahan bhi `<=` ko `<` kar diya hai
+}
+
+// 2. CSS Style inject karega taaki LOW hone par poori line (Row) RED ho jaye
+if (!document.getElementById('lowStockHighlightStyle')) {
+    const style = document.createElement('style');
+    style.id = 'lowStockHighlightStyle';
+    style.innerHTML = `
+        /* Low Stock Row ko alert jaisa lal color dene ke liye */
+        tr.low-stock-row td {
+            background-color: #ffe5e5 !important;
+            color: #c0392b !important;
+            font-weight: 800 !important;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// 3. Spare Parts Table Render Update (Highlight design ke sath)
+renderSparePartsTable = function() {
+    syncSpareCriticalMaster(false);
+    let body = document.getElementById('spBody');
+    if(!body) return;
+    let q = (f('sp_search')||'').toLowerCase();
+    let a = data.spares.filter(r => !q || Object.values(r).join(' ').toLowerCase().includes(q));
+    
+    body.innerHTML = a.map(r => {
+        let idx = data.spares.indexOf(r), st = spareStatus(r);
+        // Nayi Class "low-stock-row" lagayega agar status LOW hai
+        return `<tr class="${st === 'LOW' ? 'low-stock-row' : ''}">
+            <td>${esc(r.sno)}</td><td>${esc(r.code)}</td><td>${esc(r.desc)}</td>
+            <td>${esc(r.spec)}</td><td>${esc(r.make)}</td><td>${esc(r.min)}</td>
+            <td>${esc(r.max)}</td><td>${esc(inventoryAvailableQty(r))}</td>
+            <td class="${spareStatusClass(r)}">${st}</td><td>${esc(r.loc)}</td>
+            <td class="editbar">
+                <button class="secondary" onclick="editSparePart(${idx})">Edit</button>
+                <button class="danger" onclick="deleteSparePart(${idx})">Delete</button>
+            </td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="11">No spare parts found.</td></tr>';
+    
+    populateBDSpareSelect();
+    refreshPMSpareSelects();
+    refreshMRSpareSelects();
+};
+
+// 4. Critical Spare Table Render Update (Highlight design ke sath)
+renderCriticalTable = function() {
+    syncSpareCriticalMaster(false);
+    let body = document.getElementById('csBody');
+    if(!body) return;
+    let q = (f('cs_search')||'').toLowerCase();
+    let a = data.critical.filter(r => !q || Object.values(r).join(' ').toLowerCase().includes(q));
+    
+    body.innerHTML = a.map(r => {
+        let idx = data.critical.indexOf(r), st = criticalStatus(r);
+        // Nayi Class "low-stock-row" lagayega agar status Low hai
+        return `<tr class="${st === 'Low' ? 'low-stock-row' : ''}">
+            <td>${esc(r.sno)}</td><td>${esc(r.code)}</td><td>${esc(r.desc)}</td>
+            <td>${esc(r.spec)}</td><td>${esc(r.min)}</td><td>${esc(r.max)}</td>
+            <td>${esc(r.machine)}</td><td>${esc(r.loc)}</td><td>${esc(r.avail)}</td>
+            <td class="${st === 'Low' ? 'req-open' : 'req-closed'}">${st}</td>
+            <td>${esc(r.remark)}</td>
+            <td class="editbar">
+                <button class="secondary" onclick="editCriticalSpare(${idx})">Edit</button>
+                <button class="danger" onclick="deleteCriticalSpare(${idx})">Delete</button>
+            </td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="12">No critical spares found.</td></tr>';
+    
+    populateBDSpareSelect();
+};
+
+// Turant dashboard aur lists ko nayi setting ke hisaab se update karega
+setTimeout(() => {
+    if(typeof renderSparePartsTable === 'function') renderSparePartsTable();
+    if(typeof renderCriticalTable === 'function') renderCriticalTable();
+    if(typeof renderDashboard === 'function') renderDashboard();
+}, 500);
 </script>
 </body>
 </html>
