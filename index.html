@@ -5403,70 +5403,59 @@ if (typeof renderAll !== 'undefined') {
     };
 }
 // =================================================================
-// BULLETPROOF FIX: FORCIBLY INJECT NEW MODULES INTO PERMISSION GRID
+// ULTIMATE MUTATION OBSERVER & PERMISSION GRID PATCH
 // =================================================================
 setTimeout(() => {
-    // 1. Global array mein add karna
+    // 1. Ensure MMS_MODULES has the new keys globally
     if (typeof MMS_MODULES !== 'undefined') {
         if (!MMS_MODULES.some(m => m.key === 'meeting')) MMS_MODULES.push({ key: 'meeting', label: 'Meeting Discussion Log' });
         if (!MMS_MODULES.some(m => m.key === 'sparePurchase')) MMS_MODULES.push({ key: 'sparePurchase', label: 'Spare Part Purchase Register' });
     }
 
-    // 2. Permission grid render function ko intercept karna taaki table mein rows zaroor dikhein
-    const originalSelectPermUser = typeof selectPermUser === 'function' ? selectPermUser : null;
-    if (originalSelectPermUser) {
-        selectPermUser = function(username) {
-            originalSelectPermUser(username);
-            // Table render hone ke turant baad check karke naye modules ki row add kar dena
-            setTimeout(injectNewModulesIntoPermTable, 100);
+    // 2. Patch default permissions so backend guards recognize the new modules smoothly
+    if (typeof mmsDefaultPermsForRole === 'function') {
+        const oldDefaultPerms = mmsDefaultPermsForRole;
+        window.mmsDefaultPermsForRole = function(role) {
+            let p = oldDefaultPerms(role);
+            if (p) {
+                if (!p.meeting) p.meeting = (role === 'Admin' ? {save:true, edit:true, del:true} : {save:false, edit:false, del:false});
+                if (!p.sparePurchase) p.sparePurchase = (role === 'Admin' ? {save:true, edit:true, del:true} : {save:true, edit:true, del:false});
+            }
+            return p;
         };
     }
-}, 1000);
 
-function injectNewModulesIntoPermTable() {
-    let tableBody = document.querySelector('#mmsPermGrid tbody') || document.querySelector('.perm-table tbody') || document.querySelector('#systemToolsPanel table tbody');
-    if (!tableBody) {
-        // Agar table tbody class se nahi mil rahi, toh general table dhoondho jahan modules ki list hoti hai
+    // 3. MutationObserver: Yeh background mein watch karega ki kab System Tools ki table khulti hai
+    const observer = new MutationObserver((mutations) => {
         let tables = document.querySelectorAll('table');
         tables.forEach(t => {
-            if (t.textContent.includes('Breakdown') && t.textContent.includes('Preventive')) {
-                tableBody = t.querySelector('tbody') || t;
+            if (t.textContent.includes('Breakdown') || t.textContent.includes('Preventive')) {
+                let tbody = t.querySelector('tbody') || t;
+                if (tbody) {
+                    if (!tbody.innerHTML.includes('meeting')) {
+                        let tr1 = document.createElement('tr');
+                        tr1.innerHTML = `<td>Meeting Discussion Log</td>
+                            <td><input type="checkbox" data-mod="meeting" data-act="save" onchange="if(typeof mmsPermChanged==='function')mmsPermChanged(this)"> Save</td>
+                            <td><input type="checkbox" data-mod="meeting" data-act="edit" onchange="if(typeof mmsPermChanged==='function')mmsPermChanged(this)"> Edit</td>
+                            <td><input type="checkbox" data-mod="meeting" data-act="del" onchange="if(typeof mmsPermChanged==='function')mmsPermChanged(this)"> Delete</td>`;
+                        tbody.appendChild(tr1);
+                    }
+                    if (!tbody.innerHTML.includes('sparePurchase')) {
+                        let tr2 = document.createElement('tr');
+                        tr2.innerHTML = `<td>Spare Part Purchase Register</td>
+                            <td><input type="checkbox" data-mod="sparePurchase" data-act="save" onchange="if(typeof mmsPermChanged==='function')mmsPermChanged(this)"> Save</td>
+                            <td><input type="checkbox" data-mod="sparePurchase" data-act="edit" onchange="if(typeof mmsPermChanged==='function')mmsPermChanged(this)"> Edit</td>
+                            <td><input type="checkbox" data-mod="sparePurchase" data-act="del" onchange="if(typeof mmsPermChanged==='function')mmsPermChanged(this)"> Delete</td>`;
+                        tbody.appendChild(tr2);
+                    }
+                }
             }
         });
-    }
+    });
 
-    if (tableBody) {
-        // Check karo ki kya meeting module pehle se table mein hai ya nahi
-        if (!tableBody.innerHTML.includes('meeting')) {
-            let row1 = document.createElement('tr');
-            row1.innerHTML = `<td>Meeting Discussion Log</td>
-                <td><input type="checkbox" data-mod="meeting" data-act="save" onchange="mmsPermChanged(this)"> Save</td>
-                <td><input type="checkbox" data-mod="meeting" data-act="edit" onchange="mmsPermChanged(this)"> Edit</td>
-                <td><input type="checkbox" data-mod="meeting" data-act="del" onchange="mmsPermChanged(this)"> Delete</td>`;
-            tableBody.appendChild(row1);
-        }
-        if (!tableBody.innerHTML.includes('sparePurchase')) {
-            let row2 = document.createElement('tr');
-            row2.innerHTML = `<td>Spare Part Purchase Register</td>
-                <td><input type="checkbox" data-mod="sparePurchase" data-act="save" onchange="mmsPermChanged(this)"> Save</td>
-                <td><input type="checkbox" data-mod="sparePurchase" data-act="edit" onchange="mmsPermChanged(this)"> Edit</td>
-                <td><input type="checkbox" data-mod="sparePurchase" data-act="del" onchange="mmsPermChanged(this)"> Delete</td>`;
-            tableBody.appendChild(row2);
-        }
-    }
-}
-
-// System tools button ya module access control par click hone par bhi trigger kar dena
-setTimeout(() => {
-    let sysToolsBtn = document.querySelector('button[onclick*="SystemTools"]') || document.querySelector('button[onclick*="system"]');
-    if (sysToolsBtn) {
-        let oldClick = sysToolsBtn.onclick;
-        sysToolsBtn.onclick = function(e) {
-            if (oldClick) oldClick(e);
-            setTimeout(injectNewModulesIntoPermTable, 500);
-        };
-    }
-}, 1500);
+    observer.observe(document.body, { childList: true, subtree: true });
+}, 500);
+// =================================================================
 </script>
 </body>
 </html>
