@@ -2190,12 +2190,24 @@ function updatePFStatus(){
  el.value=pf>=0.9?'OK':'NOT OK';
 }
 ['pf_kwh','pf_kvah'].forEach(id=>document.getElementById(id)?.addEventListener('input',updatePFStatus));
-function savePF(){
- if(!mmsGuardSave('pf'))return;
- updatePFStatus();
- let row={date:f('pf_date'),time:f('pf_time'),kwh:num(f('pf_kwh')),kvah:num(f('pf_kvah')),status:f('pf_status'),sign:f('pf_sign')};
- if(!row.date)return alert('Date required'); if(edit.pf!==null)data.pf[edit.pf]=row;else data.pf.push(row);
- persist('pf');edit.pf=null;clearPF();renderPF();renderDashboard()
+// ==============================================================
+// UPDATED savePF WITH AUTO WHATSAPP PROMPT (100% SAFE)
+// ==============================================================
+function savePF() {
+    if (!mmsGuardSave('pf')) return;
+    updatePFStatus();let row = {date: f('pf_date'),time: f('pf_time'),kwh: num(f('pf_kwh')),kvah: num(f('pf_kvah')),status: f('pf_status'),sign: f('pf_sign')};
+    if (!row.date) return alert('Date required'); 
+    // WhatsApp Message ke liye Daily Difference Calculate karna (Bina database chhede)
+    let rows = [...data.pf].sort((x, y) => (x.date + x.time).localeCompare(y.date + y.time));if (edit.pf !== null) rows = rows.filter((_, i) => data.pf.indexOf(_) !== edit.pf);let prev = rows.length ? rows[rows.length - 1] : null;
+    let dkwh = '', dkvah = '', pfVal = '';if (prev && row.kwh && row.kvah) {dkwh = (row.kwh - prev.kwh).toFixed(1);dkvah = (row.kvah - prev.kvah).toFixed(1);pfVal = Number(dkvah) !== 0 ? (Number(dkwh) / Number(dkvah)).toFixed(3) : '—';}
+    let wasEdit = edit.pf !== null;if (wasEdit) data.pf[edit.pf] = row;else data.pf.push(row);persist('pf');edit.pf = null;clearPF();renderPF();renderDashboard();
+    // Pehle save ki confirmation dikhayega
+    alert(wasEdit ? 'Reading updated successfully.' : 'Reading saved successfully.');
+    // Save hote hi turant WhatsApp par share karne ka popup aayega
+    if (confirm('Do you want to share this reading to the Power Factor WhatsApp Group?')) {
+    let msg = `⚡ *DAILY POWER FACTOR REPORT*\n` +`🏢 Unit-7 | Milestone Gears Ltd.\n` +`📅 Date: ${fmtDate(row.date)} | ⏰ Time: ${row.time}\n\n` +`📊 *Meter Readings:*\n` +`• KWH: ${row.kwh}\n` +`• KVAH: ${row.kvah}\n\n` +`📈 *Daily Consumption:*\n` +`• KWH Diff: ${dkwh}\n` +`• KVAH Diff: ${dkvah}\n\n` +`✅ *POWER FACTOR: ${pfVal}* (${row.status})`;
+    // WhatsApp open karega (Aap group select karke bhej sakte hain)
+    window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');}
 }
 
 function clearPF(){
