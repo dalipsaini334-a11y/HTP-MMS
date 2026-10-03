@@ -4776,7 +4776,7 @@ function editMachineFromMasterList(machineNo) {
     alert('✅ Machine details updated successfully.');
 }
 // ==========================================
-// DYNAMIC LIVE CURRENT TIME FOR UTILITY MODULES
+// AUTO-DYNAMIC LIVE TIME ON MODULE OPEN
 // ==========================================
 function getLiveTimeString() {
     let now = new Date();
@@ -4785,40 +4785,49 @@ function getLiveTimeString() {
     return h + ':' + m;
 }
 
-// 1. Page load hone par agar time field khali hai, toh live current time set kar dega
+// 1. Har baar jab bhi aap koi tab (Power Factor, Power Cut, DG) kholeinge, yeh turant live time set kar dega
+const oldNavigateApp = typeof navigateApp === 'function' ? navigateApp : null;
+if (oldNavigateApp) {
+    navigateApp = function(target, btn) {
+        let res = oldNavigateApp(target, btn);
+        // Thoda sa delay dekar check karega taaki panel active ho jaye
+        setTimeout(() => {
+            if (target === 'pf') {
+                let el = document.getElementById('pf_time');
+                if (el && !el.value) el.value = getLiveTimeString();
+            } else if (target === 'pc') {
+                let el = document.getElementById('pc_time');
+                if (el && !el.value) el.value = getLiveTimeString();
+            } else if (target === 'dg') {
+                let el = document.getElementById('dg_time');
+                if (el && !el.value) el.value = getLiveTimeString();
+            }
+        }, 150);
+        return res;
+    };
+}
+
+// 2. Clear / Reset button dabane par bhi live current time set rahega
+if (typeof clearPF === 'function') {
+    let oldClearPF = clearPF;
+    clearPF = function() { oldClearPF(); setv('pf_time', getLiveTimeString()); };
+}
+if (typeof clearPC === 'function') {
+    let oldClearPC = clearPC;
+    clearPC = function() { oldClearPC(); setv('pc_time', getLiveTimeString()); };
+}
+if (typeof clearDG === 'function') {
+    let oldClearDG = clearDG;
+    clearDG = function() { oldClearDG(); setv('dg_time', getLiveTimeString()); };
+}
+
+// 3. Page pehli baar load hone par bhi live time set karega
 setTimeout(() => {
     ['pf_time', 'pc_time', 'dg_time'].forEach(id => {
         let el = document.getElementById(id);
-        if (el && !el.value) {
-            el.value = getLiveTimeString();
-        }
+        if (el && !el.value) el.value = getLiveTimeString();
     });
-}, 450);
-
-// 2. Clear / Reset button dabane par bhi live current time automatically aa jayega
-if (typeof clearPF === 'function') {
-    let oldClearPF = clearPF;
-    clearPF = function() {
-        oldClearPF();
-        setv('pf_time', getLiveTimeString());
-    };
-}
-
-if (typeof clearPC === 'function') {
-    let oldClearPC = clearPC;
-    clearPC = function() {
-        oldClearPC();
-        setv('pc_time', getLiveTimeString());
-    };
-}
-
-if (typeof clearDG === 'function') {
-    let oldClearDG = clearDG;
-    clearDG = function() {
-        oldClearDG();
-        setv('dg_time', getLiveTimeString());
-    };
-}
+}, 500);
 </script>
 </body>
 </html>
