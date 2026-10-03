@@ -5403,106 +5403,44 @@ if (typeof renderAll !== 'undefined') {
     };
 }
 // =================================================================
-// UPDATE: INTEGRATE NEW MODULES INTO MODULE ACCESS CONTROL (100% SAFE)
+// IMMEDIATE FIX: ADD MODULES TO SYSTEM TOOLS ACCESS CONTROL
 // =================================================================
-setTimeout(() => {
-    // 1. MMS_MODULES array mein dono naye modules add karna taaki System Tools ke grid mein dikhein
-    if (typeof MMS_MODULES !== 'undefined') {
-        if (!MMS_MODULES.some(m => m.key === 'meeting')) {
-            MMS_MODULES.push({ key: 'meeting', label: 'Meeting Discussion Log' });
-        }
-        if (!MMS_MODULES.some(m => m.key === 'sparePurchase')) {
-            MMS_MODULES.push({ key: 'sparePurchase', label: 'Spare Part Purchase Register' });
-        }
-    }
 
-    // 2. System Tools ka user/permission grid refresh karna agar open hai
+// 1. Turant global MMS_MODULES array mein push karna (Bina delay ke)
+if (typeof MMS_MODULES !== 'undefined') {
+    if (!MMS_MODULES.some(m => m.key === 'meeting')) {
+        MMS_MODULES.push({ key: 'meeting', label: 'Meeting Discussion Log' });
+    }
+    if (!MMS_MODULES.some(m => m.key === 'sparePurchase')) {
+        MMS_MODULES.push({ key: 'sparePurchase', label: 'Spare Part Purchase Register' });
+    }
+} else {
+    window.MMS_MODULES = [
+        { key: 'bd', label: 'Breakdown' },
+        { key: 'pm', label: 'Preventive Maintenance' },
+        { key: 'pf', label: 'Power Factor' },
+        { key: 'pc', label: 'Power Cut' },
+        { key: 'dg', label: 'DG Readings' },
+        { key: 'spares', label: 'Spare Parts Inventory' },
+        { key: 'critical', label: 'Critical Spares' },
+        { key: 'machines', label: 'Machine Master' },
+        { key: 'meeting', label: 'Meeting Discussion Log' },
+        { key: 'sparePurchase', label: 'Spare Part Purchase Register' }
+    ];
+}
+
+// 2. System Tools khulte hi ya page load par grid ko turant refresh karna
+setTimeout(() => {
     if (typeof populatePermUserSelect === 'function') {
         populatePermUserSelect();
     }
-
-    // 3. Meeting Module ke functions ko security guards ke sath update karna 
-    // (Taaki ab yeh strict Admin-only na rahe kar Module Access Control ki permissions follow kare)
-    window.saveMeetingRecord = function() {
-        if (typeof mmsGuardSave === 'function' && !mmsGuardSave('meeting')) return;
-        if (!Array.isArray(data.meeting)) data.meeting = [];
-
-        let date = f('meet_date'), time = f('meet_time'), topic = f('meet_topic');
-        if (!date || !topic.trim()) return alert('Please enter Meeting Date and Discussion Topic.');
-
-        let obj = {
-            id: editMeetingIndex !== null ? data.meeting[editMeetingIndex].id : 'meet-' + Date.now(),
-            date, time,
-            topic: topic.trim(),
-            notes: f('meet_notes').trim(),
-            action: f('meet_action').trim(),
-            assigned: f('meet_assigned').trim(),
-            target: f('meet_target'),
-            status: f('meet_status') || 'Open',
-            updatedAt: new Date().toISOString()
-        };
-
-        if (editMeetingIndex !== null) {
-            data.meeting[editMeetingIndex] = obj;
-        } else {
-            data.meeting.push(obj);
-        }
-
-        if (typeof persist === 'function') persist('meeting');
-        clearMeetingForm();
-        renderMeetingTable();
-        alert('Meeting discussion record saved successfully.');
-    };
-
-    window.editMeetingRecord = function(i) {
-        if (typeof mmsGuardEdit === 'function' && !mmsGuardEdit('meeting')) return;
-        let r = data.meeting[i];
-        if (!r) return;
-        editMeetingIndex = i;
-        setv('meet_id', r.id);
-        setv('meet_date', r.date);
-        setv('meet_time', r.time);
-        setv('meet_topic', r.topic);
-        setv('meet_notes', r.notes);
-        setv('meet_action', r.action);
-        setv('meet_assigned', r.assigned);
-        setv('meet_target', r.target);
-        setv('meet_status', r.status);
-        let btn = document.querySelector('#meetingLog .primary');
-        if (btn) btn.textContent = 'Update Meeting Record';
-        document.getElementById('meetingLog').scrollIntoView({ behavior: 'smooth' });
-    };
-
-    window.deleteMeetingRecord = function(i) {
-        if (typeof mmsGuardDelete === 'function' && !mmsGuardDelete('meeting')) return;
-        if (!confirm('Delete this meeting record?')) return;
-        data.meeting.splice(i, 1);
-        if (typeof persist === 'function') persist('meeting');
-        renderMeetingTable();
-    };
-
-    // 4. Sidebar mein Meeting Tab ki visibility ko user permissions ke mutabiq adjust karna
-    let sess = typeof mmsSession === 'function' ? mmsSession() : null;
-    let meetingTab = document.getElementById('sidebarMeetingTab');
-    if (meetingTab) {
-        let canViewMeeting = false;
-        if (sess) {
-            if (sess.role === 'Admin') {
-                canViewMeeting = true;
-            } else {
-                let rec = typeof mmsCurrentUserRecord === 'function' ? mmsCurrentUserRecord() : null;
-                let perms = (rec && rec.perms) || (typeof mmsDefaultPermsForRole === 'function' ? mmsDefaultPermsForRole(sess.role) : {});
-                if (perms['meeting'] && (perms['meeting'].save || perms['meeting'].edit)) {
-                    canViewMeeting = true;
-                }
-            }
-        }
-        let navGroup = meetingTab.closest('.nav-group');
-        if (navGroup) {
-            navGroup.style.display = canViewMeeting ? 'block' : 'none';
-        }
+    // Agar koi specific permission table rendering function hai toh use trigger karna
+    let permGrid = document.getElementById('mmsPermGrid') || document.querySelector('.perm-grid');
+    if (permGrid && typeof selectPermUser === 'function') {
+        let selUser = document.getElementById('permUserSelect');
+        if (selUser && selUser.value) selectPermUser(selUser.value);
     }
-}, 1500);
+}, 300);
 </script>
 </body>
 </html>
